@@ -1,66 +1,59 @@
 # ESP8266 Pin Mapping Reference
 
-## NodeMCU/Wemos D1 Mini Pin Labels
+## Wemos D1 Mini Pin Labels
 
-| NodeMCU | Wemos D1 | GPIO | Function in Project |
-|---------|----------|------|---------------------|
-| D0      | D0       | 16   | AHT10 Power Control (must connect to RST for wake) |
-| D1      | D1       | 5    | I2C SCL (AHT10)     |
-| D2      | D2       | 4    | I2C SDA (AHT10)     |
-| D3      | D3       | 0    | Boot/Flash Button (Wake button) |
-| D4      | D4       | 2    | Built-in LED (optional indicator) |
-| A0      | A0       | ADC  | Battery Voltage Monitor |
-| RST     | RST      | RST  | Reset (connect to button + GPIO16) |
-| 3V3     | 3V3      | -    | Power Output (from AMS1117) |
-| GND     | GND      | -    | Ground               |
+| Wemos D1 | GPIO | Function in Project          | Notes                        |
+|----------|------|------------------------------|------------------------------|
+| D0       | 16   | Wake Pin (to RST via 220Ω)   | Timer wake from deep sleep   |
+| D1       | 5    | I2C SCL (AHT10)              | Internal pull-up available   |
+| D2       | 4    | I2C SDA (AHT10)              | Internal pull-up available   |
+| D3       | 0    | Boot/Flash Button            | Config mode trigger          |
+| D4       | 2    | Built-in LED                 | Status indicator (active LOW)|
+| D5       | 14   | Not used                     | Available for expansion      |
+| D6       | 12   | AHT10 Power Control          | Switchable sensor power      |
+| D7       | 13   | Not used                     | Available for expansion      |
+| D8       | 15   | Not used                     | Available for expansion      |
+| A0       | ADC  | Battery Voltage Monitor      | Built-in divider on board    |
+| RST      | RST  | Reset (button + D0)          | External button + timer wake |
+| 3V3      | -    | Power Output (from MCP1700)  | 3.3V regulated               |
+| GND      | -    | Ground                       | Common ground                |
 
 ## Critical Connections
 
 ### 1. Deep Sleep Wake Circuit
 ```
-GPIO16 (D0) ───[220Ω]─┬─── RST
+D0 (GPIO16) ───[220Ω]─┬─── RST
                       │
                    [10kΩ]
                       │
                      3.3V
 ```
-The resistor limits current during wake pulse. Pull-up ensures stable reset.
+The 220Ω resistor limits current during wake pulse. The 10kΩ pull-up ensures stable reset.
+**Note**: This connection is required for timer-based wake from deep sleep.
 
-### 2. Battery Voltage Divider
+### 2. Battery Voltage Monitoring
 ```
-Battery+ ───[1MΩ]─┬─── A0
-                  │
-               [330kΩ]
-                  │
-                 GND
+Battery+ ────────── Wemos A0 (built-in divider)
 ```
+**Wemos D1 Mini has built-in voltage divider!**
+- Internal divider: 220kΩ / 100kΩ
+- Can measure 0V to ~4.2V safely
+- No external components needed
+- ADC reads 0-1023 for approximately 0-4.2V range
 
-**Calculation**:
-- Battery max: 4.2V
-- Voltage at A0: 4.2V × (330kΩ / (1MΩ + 330kΩ)) = 1.04V
-- ESP8266 ADC max input (with internal divider): ~3.3V (but best below 1V)
-- With internal 220kΩ/100kΩ divider: max ~1V external input
+**Calibration recommended**:
+Test with known battery voltages and adjust the calibration factor in code.
 
-**Alternative (safer)**:
+### 3. I2C Connections (AHT10)
 ```
-Battery+ ───[470kΩ]─┬─── A0
-                    │
-                 [100kΩ]
-                    │
-                   GND
-```
-This gives 0.74V at A0 when battery is 4.2V.
+3.3V ─────────────── D6 (GPIO12) ─── AHT10 VCC (switchable power)
 
-### 3. I2C Pull-ups (Critical for AHT10)
+D2 (GPIO4) ───────── AHT10 SDA (Wemos has internal pull-up)
+D1 (GPIO5) ───────── AHT10 SCL (Wemos has internal pull-up)
+
+GND ─────────────────AHT10 GND
 ```
-3.3V ───[4.7kΩ]─┬─── SDA (GPIO4)
-                │
-              AHT10
-                
-3.3V ───[4.7kΩ]─┬─── SCL (GPIO5)
-                │
-              AHT10
-```
+**Note**: Wemos D1 Mini typically has built-in I2C pull-ups. External 4.7kΩ resistors are optional but recommended for reliability.
 
 ## Power Architecture
 
@@ -70,31 +63,45 @@ This gives 0.74V at A0 when battery is 4.2V.
 │ 2.7V - 4.2V │
 └──────┬──────┘
        │
-       ├─────[1MΩ]────┬── A0 (Voltage Monitor)
-       │              │
-       │           [330kΩ]
-       │              │
-       │             GND
+       ├────────────────── Wemos A0 (built-in divider)
        │
        ▼
 ┌─────────────┐
-│  AMS1117    │ (or better: HT7333/MCP1700)
-│  3.3V LDO   │
+│  MCP1700    │ Low dropout LDO
+│  3.3V       │ ~178mV dropout, 1.6µA quiescent
 └──────┬──────┘
        │
-       ├────── ESP8266 VCC
-       ├────── ESP8266 CH_PD/EN
-       └────── (GPIO16 powers AHT10 dynamically)
+       ├────── Wemos 5V pin (bypasses onboard regulator)
+       │       OR connect to 3.3V pin directly
+       │
+       └────── (D6/GPIO12 switches AHT10 power)
+
+Key advantages of MCP1700:
+- Works down to 3.5V battery (vs 4.5V for AMS1117)
+- Only 1.6µA quiescent (vs 5mA for AMS1117)
+- Perfect for 18650 voltage range
 ```
+
+**Important**: When powering Wemos D1 Mini from external regulator, you can:
+1. Feed 3.3V to the **3.3V pin** (bypasses onboard regulator completely)
+2. Or feed to **5V pin** if voltage is sufficient (NOT recommended with MCP1700 at 3.3V output)
+
+**Best practice**: Connect MCP1700 output (3.3V) directly to Wemos **3V3 pin**.
 
 ## GPIO States During Operation
 
-| Mode          | GPIO16 (AHT Pwr) | GPIO4 (SDA) | GPIO5 (SCL) | GPIO0 (Btn) |
-|---------------|------------------|-------------|-------------|-------------|
-| Deep Sleep    | LOW (sensor off) | -           | -           | HIGH (pull-up) |
-| Measuring     | HIGH (sensor on) | I2C Data    | I2C Clock   | HIGH        |
-| Config Mode   | LOW              | -           | -           | LOW (pressed) |
-| WiFi Upload   | LOW              | -           | -           | -           |
+| Mode          | D6/GPIO12 (AHT) | D2/GPIO4 (SDA) | D1/GPIO5 (SCL) | D4/GPIO2 (LED) | D0/GPIO16    |
+|---------------|-----------------|----------------|----------------|----------------|--------------|
+| Deep Sleep    | LOW (off)       | -              | -              | HIGH (off)     | Pulses RST   |
+| Measuring     | HIGH (on)       | I2C Data       | I2C Clock      | LOW (on)       | LOW          |
+| WiFi Upload   | LOW             | -              | -              | Blinking       | LOW          |
+| Config Mode   | LOW             | -              | -              | LOW (on)       | LOW          |
+
+**LED Behavior**:
+- Measurement: ON during sensor reading
+- WiFi upload: Blinking every 0.5 seconds
+- Config mode: Solid ON
+- Sleep: OFF
 
 ## ESP8266 Boot Mode Selection
 
@@ -106,15 +113,26 @@ This gives 0.74V at A0 when battery is 4.2V.
 - Most dev boards handle this automatically
 - If using bare ESP-12, ensure proper pull-ups/downs
 
-## Current Draw by State
+## Current Draw by State (Wemos D1 Mini + MCP1700)
 
-| State              | Current  | Duration         | Notes                    |
-|--------------------|----------|------------------|--------------------------|
-| Deep Sleep         | ~20µA    | Most of time     | ESP8266 + HT7333         |
-| Wake & Measure     | ~80mA    | 3-5 seconds      | Includes sensor reading  |
-| WiFi Connect       | ~120mA   | 5-10 seconds     | Peak ~170mA              |
-| WiFi Transmit      | ~100mA   | 2-5 seconds      | Depends on data size     |
-| Config Mode (AP)   | ~80mA    | User-dependent   | Continuous until config  |
+| State              | Current  | Duration         | Notes                           |
+|--------------------|----------|------------------|---------------------------------|
+| Deep Sleep         | ~50µA    | Most of time     | Wemos has some leakage          |
+| Wake & Measure     | ~80mA    | 3-5 seconds      | Includes sensor + ESP           |
+| WiFi Connect       | ~120mA   | 5-10 seconds     | Peak ~170mA                     |
+| WiFi Transmit      | ~100mA   | 2-5 seconds      | Depends on data size            |
+| Config Mode (AP)   | ~80mA    | User-dependent   | Continuous until configured     |
+
+**Wemos D1 Mini Deep Sleep Reality**:
+- Ideal ESP8266: ~20µA
+- MCP1700 quiescent: ~1.6µA
+- Wemos board overhead: ~30µA (USB chip, LEDs, etc.)
+- **Total typical: 50-80µA** (varies by board revision)
+
+Some Wemos boards have higher sleep current due to:
+- CH340 USB chip not fully disabled
+- Power LED always on
+- Voltage regulator (if not bypassed)
 
 ## Troubleshooting with Multimeter
 

@@ -1,18 +1,23 @@
 **First Request**
 
 I want to make device based on ESP8266 with AHT10 sensor and 18650 battery that will be used to measure temperature and humidity on remote location. Power of AHT10 will come from ESP pin 16 to have it switchable. ESP power comes from 18650 via AMS1117 voltage regulator. Also, plus of 18650 is connected to ESP A0 pin via 1M resistor and also A0 pin is connected to ground via capacitor. And there's a button connected to ground and RST pin of ESP to wake up device on button press. I need a program for this device that will do following:
-
-- When unconfigured or button is pressed for more than 5 second, it should create wifi network without password and name like "sensor-<mac address>" and show page for configuration that include: wifi network to connect to in normal conditions, interval between measures in seconds, address of InfluxDB server where to send data to, username/password to access that server. All config then saved to ROM.
-
-- ESP normally should be in deep sleep mode, waking up on configured interval, turn on AHT10 and save measured temp/humidity together with timestamp in RTC RAM to save ROM Writing cycles.
-    
-- Number of bytes of timestamp+temperature+humidity should be minimized to save RAM/ROM space. Better have total size of record 4 bytes, for example, 2 for timestamp, 1 for temp, 1 for humidity. Timestamp can be counted from some offset. Temp also can be counted from some offset, for example from -100C to fit 1 digit precision in 1 byte.
-    
-- When there's enough data buffered in RAM to write as single block in ROM, it should be written in ROM and RAM buffer is reused.
-    
-- When device is waken up by button it should connect to configured WiFi network and send all stored sensor data from RAM+ROM to InfluxDB server. Also, send current timestamp and battery power level to same server. After sending ROM blocks can be reused but should not be cleared immediately.
-    
-- Also, when connected to WiFi device should sync time with some NTP server.
-    
-
+* When unconfigured or button is pressed for more than 5 second, it should create wifi network without password and name like "sensor-<mac address>" and show page for configuration that include: wifi network to connect to in normal conditions, interval between measures in seconds, address of InfluxDB server where to send data to, username/password to access that server. All config then saved to ROM.
+* ESP normally should be in deep sleep mode, waking up on configured interval, turn on AHT10 and save measured temp/humidity together with timestamp in RTC RAM to save ROM Writing cycles.
+* Number of bytes of timestamp+temperature+humidity should be minimized to save RAM/ROM space. Better have total size of record 4 bytes, for example, 2 for timestamp, 1 for temp, 1 for humidity. Timestamp can be counted from some offset. Temp also can be counted from some offset, for example from -100C to fit 1 digit precision in 1 byte.
+* When there's enough data buffered in RAM to write as single block in ROM, it should be written in ROM and RAM buffer is reused.
+* When device is waken up by button it should connect to configured WiFi network and send all stored sensor data from RAM+ROM to InfluxDB server. Also, send current timestamp and battery power level to same server. After sending ROM blocks can be reused but should not be cleared immediately.
+* Also, when connected to WiFi device should sync time with some NTP server.
 Any advises are also welcome.
+
+** Second request (correction)**
+I checked your recommendations and code. Here's some corrections:
+* I have MCP1700, not AMS1117. My mistake.
+* I use Wemos D1 Mini, not plain ESP8266. And Wemos board already has voltage divider on pin A0.
+* Maybe it is better to move AHT10 power to different pin that won't be used for anything else like waking up board?
+* Charging module is not required for now. Device is supposed to have battery replaced and charged somewhere else.
+* Device should keep measurements for at least 2 weeks, ideally for a month, before having possibility to offload them to InfluxDB server.
+* WiFi should wake up and upload data only when button is pressed. Timer wake up should only record data in memory.
+* Wake up by timer should be without RF turned on. WiFi starts only when woken up by button.
+* Static IP for WiFi client is not possible.
+* Every action should be accompanied with internal Wemod D1 Mini LED blink. Simple measurement - turn on LED when starting, turn off when finished. Button wake up - blink led every 0.5s until transfer is complete. Initial of button-cause configuration - turn LED on until config is complete.
+Please correct files and give more advices.

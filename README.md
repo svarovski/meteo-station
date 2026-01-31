@@ -16,43 +16,44 @@ Low-power IoT sensor for remote environmental monitoring with InfluxDB integrati
 ## Hardware Requirements
 
 ### Components
-- **ESP8266** (ESP-12E/F or NodeMCU/Wemos D1 Mini)
+- **Wemos D1 Mini** (ESP8266-based development board)
 - **AHT10** Temperature/Humidity Sensor
 - **18650 Li-ion Battery** (3000-3500mAh recommended)
-- **AMS1117-3.3V** Voltage Regulator
-- **Resistors**: 1x 1MΩ, 2x 4.7kΩ (I2C pull-ups)
-- **Capacitor**: 1x 100nF (ADC filtering)
+- **MCP1700-3.3V** Voltage Regulator (low dropout, low quiescent current)
+- **Resistors**: 2x 4.7kΩ (I2C pull-ups) - may already be on Wemos board
 - **Button**: Momentary push button
-- **Optional**: 18650 battery holder, TP4056 charging module
+- **18650 battery holder**
+- **Note**: Wemos D1 Mini has built-in voltage divider on A0, no external divider needed
 
 ### Wiring Diagram
 
 ```
-18650 Battery (+) ────┬─── AMS1117 VIN
+18650 Battery (+) ────┬─── MCP1700 VIN
                       │
-                      └─── 1MΩ ───┬─── ESP8266 A0
-                                   │
-                                   └─── 100nF ─── GND
+                      └─── Wemos D1 Mini A0 (has built-in divider)
 
-AMS1117 VOUT (3.3V) ──┬─── ESP8266 VCC
-                      └─── ESP8266 CH_PD (EN)
+MCP1700 VOUT (3.3V) ──┬─── Wemos D1 Mini 5V pin
+                      └─── (Wemos onboard regulator bypassed)
 
-GND ──────────────────┬─── ESP8266 GND
-                      ├─── AMS1117 GND
+GND ──────────────────┬─── Wemos D1 Mini GND
+                      ├─── MCP1700 GND
                       ├─── AHT10 GND
                       └─── Button (one side)
 
-ESP8266 GPIO16 (D0) ──┬─── AHT10 VCC
-                      └─── (Connect to RST for deep sleep wake)
+Wemos D1 (GPIO5) ─────┬─── AHT10 SDA
+                      └─── 4.7kΩ ─── 3.3V (if needed)
 
-ESP8266 GPIO4 (D2) ───┬─── AHT10 SDA
-                      └─── 4.7kΩ ─── 3.3V
+Wemos D2 (GPIO4) ─────┬─── AHT10 SCL
+                      └─── 4.7kΩ ─── 3.3V (if needed)
 
-ESP8266 GPIO5 (D1) ───┬─── AHT10 SCL
-                      └─── 4.7kΩ ─── 3.3V
+Wemos D6 (GPIO12) ────┴─── AHT10 VCC (switchable power)
 
-ESP8266 RST ──────────┴─── Button (other side)
-                      └─── 10kΩ ─── 3.3V (pull-up)
+Wemos RST ────────────┬─── Button (other side)
+                      ├─── 10kΩ ─── 3.3V (pull-up)
+                      └─── D0 (GPIO16) via 220Ω (for timer wake)
+
+Note: Wemos D1 Mini has built-in pull-ups and voltage divider,
+      external pull-ups may not be needed for I2C.
 ```
 
 ### Important Notes on Hardware
@@ -63,16 +64,19 @@ ESP8266 RST ──────────┴─── Button (other side)
    - **Recommended**: 1MΩ from Battery+ to A0, 330kΩ from A0 to GND
    - This gives ~3.15V max at A0 when battery is 4.2V (safe for ESP8266's 1V ADC max with internal divider)
 
-3. **AMS1117 Dropout**: AMS1117 requires ~1.2V dropout, so minimum battery voltage is ~4.5V. For 18650 (2.7-4.2V range):
-   - **Better option**: Use **HT7333** or **MCP1700** (LDO with ~178mV dropout)
-   - Or use a boost converter for lower battery operation
+4. **MCP1700 Advantages**:
+   - Low dropout: ~178mV (works well with 18650's 2.7-4.2V range)
+   - Ultra-low quiescent current: ~1.6µA
+   - **Minimum battery voltage**: ~3.5V for stable 3.3V output
+   - Can operate down to ~3.2V battery (3.0V output, ESP still works)
 
-4. **Power Consumption**:
-   - Deep sleep: ~20µA (ESP8266 alone)
-   - AHT10 sleeping: ~0.25µA
-   - **Estimated battery life** (3000mAh): 
-     - 5-minute intervals: ~6-8 months
-     - 15-minute intervals: ~12-18 months
+5. **Power Consumption**:
+   - Deep sleep: ~20µA (ESP8266) + ~1.6µA (MCP1700) = ~22µA total
+   - Wemos D1 Mini may have additional components (~50µA typical in deep sleep)
+   - **Estimated battery life** (3000mAh, Wemos D1 Mini): 
+     - 5-minute intervals: ~4-5 months
+     - 30-minute intervals: ~18-24 months
+     - 60-minute intervals: ~30+ months
 
 ## Software Setup
 
@@ -157,11 +161,16 @@ struct SensorRecord {
 ```
 
 **Storage capacity**:
-- RTC RAM: 64 records (256 bytes)
-- EEPROM: 64 records (256 bytes)
-- **Total**: 128 measurements before upload required
+- RTC RAM: 128 records (512 bytes)
+- EEPROM: 896 records (3584 bytes available, using 224 blocks of 16 records)
+- **Total**: ~1024 measurements before upload required
 
-**Example**: At 5-minute intervals, ~10.6 hours of autonomous operation
+**Example**: At 5-minute intervals = ~3.5 days autonomous
+At 30-minute intervals = ~21 days (3 weeks)
+At 60-minute intervals = ~42 days (6 weeks)
+
+For 2-week requirement: 30-minute intervals sufficient
+For 1-month requirement: 45-60 minute intervals needed
 
 ### InfluxDB Line Protocol
 

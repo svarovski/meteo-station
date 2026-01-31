@@ -17,10 +17,11 @@
 #include <time.h>
 #include <Adafruit_AHTX0.h>
 
-// Pin definitions
-#define AHT_POWER_PIN 16  // D0 - Powers AHT10 sensor
-#define BATTERY_PIN A0     // ADC for battery voltage
-#define BUTTON_PIN 0       // D3 - Wake button (also FLASH button)
+// Pin definitions for Wemos D1 Mini
+#define AHT_POWER_PIN 12  // D6 - Powers AHT10 sensor (separate from wake pin)
+#define BATTERY_PIN A0     // A0 - ADC for battery voltage (has built-in divider on Wemos)
+#define LED_PIN 2          // D4 - Built-in LED (active LOW)
+#define WAKE_PIN 16        // D0 - Must connect to RST for timer wake
 
 // Configuration structure stored in EEPROM
 struct Config {
@@ -45,26 +46,36 @@ struct __attribute__((packed)) SensorRecord {
 };
 
 // RTC RAM structure (persists during deep sleep)
+// Wemos D1 Mini has 512 bytes RTC RAM available
 struct RTCData {
   uint32_t magic;           // Magic number to verify valid RTC data
   uint32_t lastSync;        // Last NTP sync timestamp
   uint16_t recordCount;     // Number of records in buffer
-  uint16_t romWriteIndex;   // Next ROM write position
-  SensorRecord buffer[64];  // Buffer for ~64 readings before ROM write
+  uint16_t romWriteIndex;   // Next ROM write position (in records, not bytes)
+  uint16_t romRecordCount;  // Total records currently in ROM
+  uint16_t padding;         // Alignment padding
+  SensorRecord buffer[RTC_BUFFER_SIZE];  // 128 records = 512 bytes
 };
 
 // Constants
 #define CONFIG_MAGIC 0xABCD1234
 #define RTC_MAGIC 0x12345678
-#define EEPROM_SIZE 512
+#define EEPROM_SIZE 4096          // Wemos D1 Mini has 4KB EEPROM
 #define CONFIG_ADDR 0
-#define ROM_DATA_START 256     // Start address for sensor data in EEPROM
-#define ROM_DATA_SIZE 256      // 256 bytes = 64 records max in ROM
+#define ROM_DATA_START 512        // Start address for sensor data in EEPROM
+#define ROM_DATA_SIZE 3584        // 3584 bytes = 896 records (3.5KB for data)
 #define MAX_ROM_RECORDS (ROM_DATA_SIZE / sizeof(SensorRecord))
-#define BUTTON_LONG_PRESS 5000 // 5 seconds for config mode
+#define RTC_BUFFER_SIZE 128       // 128 records in RAM before ROM write
+#define BUTTON_LONG_PRESS 5000    // 5 seconds for config mode
 #define AP_SSID_PREFIX "sensor-"
 #define NTP_SERVER "pool.ntp.org"
-#define VOLTAGE_DIVIDER_RATIO 1.0  // Adjust based on actual resistor values
+
+// Storage capacity:
+// - RTC RAM: 128 records
+// - EEPROM: 896 records  
+// - Total: 1024 records
+// At 30-minute intervals = 21 days (3 weeks)
+// At 45-minute intervals = 32 days (1 month+)
 
 // Global variables
 Config config;
@@ -83,18 +94,24 @@ void loadRTCData();
 void saveRTCData();
 void writeBufferToROM();
 void uploadToInfluxDB();
+bool sendInfluxBatch(WiFiClient& client, String& postData);
 void syncNTP();
 float readBatteryVoltage();
 void deepSleep(uint32_t seconds);
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n\nESP8266 Sensor Starting...");
+  Serial.println("\n\nWemos D1 Mini Sensor Starting...");
   
   // Initialize pins
   pinMode(AHT_POWER_PIN, OUTPUT);
   digitalWrite(AHT_POWER_PIN, LOW); // AHT10 off initially
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH); // LED off (active LOW)
+  
+  pinMode(WAKE_PIN, OUTPUT);
+  digitalWrite(WAKE_PIN, LOW);
   
   // Initialize EEPROM
   EEPROM.begin(EEPROM_SIZE);
@@ -105,47 +122,75 @@ void setup() {
   // Load RTC data
   loadRTCData();
   
-  // Check button press duration
-  unsigned long buttonPressStart = millis();
-  bool buttonPressed = (digitalRead(BUTTON_PIN) == LOW);
+  // Check reset reason to determine wake source
+  rst_info *resetInfo = ESP.getResetInfoPtr();
+  bool timerWake = (resetInfo->reason == REASON_DEEP_SLEEP_AWAKE);
+  bool buttonWake = (resetInfo->reason == REASON_EXT_SYS_RST);
   
-  if (buttonPressed) {
-    Serial.println("Button detected, checking duration...");
-    delay(100); // Debounce
+  Serial.printf("Reset reason: %d (%s)\n", resetInfo->reason, 
+                timerWake ? "Timer" : buttonWake ? "Button/External" : "Power-on");
+  
+  // If button wake, check for long press (config mode)
+  if (buttonWake || resetInfo->reason == REASON_DEFAULT_RST) {
+    // Check if user is holding button for config mode
+    // Read GPIO0 state (boot button on Wemos acts as config trigger)
+    pinMode(0, INPUT_PULLUP);
+    delay(100);
     
-    while (digitalRead(BUTTON_PIN) == LOW && (millis() - buttonPressStart) < BUTTON_LONG_PRESS) {
-      delay(10);
+    if (digitalRead(0) == LOW) {
+      // Button held during boot - wait to see if long press
+      unsigned long pressStart = millis();
+      while (digitalRead(0) == LOW && (millis() - pressStart) < BUTTON_LONG_PRESS) {
+        delay(10);
+      }
+      
+      if (millis() - pressStart >= BUTTON_LONG_PRESS) {
+        // Long press - enter config mode
+        Serial.println("Long press detected - entering config mode");
+        digitalWrite(LED_PIN, LOW); // LED ON during config
+        enterConfigMode();
+        return; // Never returns
+      }
     }
     
-    unsigned long pressDuration = millis() - buttonPressStart;
-    Serial.printf("Button pressed for %lu ms\n", pressDuration);
-    
-    if (pressDuration >= BUTTON_LONG_PRESS) {
-      // Long press - enter config mode
-      Serial.println("Long press detected - entering config mode");
+    // Check if configured
+    if (config.magic != CONFIG_MAGIC) {
+      Serial.println("Not configured - entering config mode");
+      digitalWrite(LED_PIN, LOW); // LED ON during config
       enterConfigMode();
-      return; // Never returns, ESP resets after config
-    } else {
-      // Short press - sync and upload
-      Serial.println("Short press - sync and upload mode");
-      syncAndUpload();
-      deepSleep(config.interval);
       return;
     }
+    
+    // Short button press or external reset - sync and upload mode
+    Serial.println("Button wake - sync and upload mode");
+    syncAndUpload(); // Handles LED blinking internally
+    deepSleep(config.interval);
+    return;
   }
   
-  // Check if configured
+  // Timer wake - just take measurement (no WiFi)
+  if (timerWake) {
+    Serial.println("Timer wake - measurement mode");
+    digitalWrite(LED_PIN, LOW); // LED ON
+    performMeasurement();
+    digitalWrite(LED_PIN, HIGH); // LED OFF
+    deepSleep(config.interval);
+    return;
+  }
+  
+  // First boot or unknown wake reason
   if (config.magic != CONFIG_MAGIC) {
-    Serial.println("Not configured - entering config mode");
+    Serial.println("First boot - entering config mode");
+    digitalWrite(LED_PIN, LOW); // LED ON during config
     enterConfigMode();
     return;
   }
   
-  // Normal operation - take measurement
-  Serial.println("Normal measurement mode");
+  // Configured, take first measurement
+  Serial.println("First measurement after power-on");
+  digitalWrite(LED_PIN, LOW); // LED ON
   performMeasurement();
-  
-  // Go back to deep sleep
+  digitalWrite(LED_PIN, HIGH); // LED OFF
   deepSleep(config.interval);
 }
 
@@ -319,10 +364,10 @@ void performMeasurement() {
   }
   
   rtcData.buffer[rtcData.recordCount++] = record;
-  Serial.printf("Buffered record %d/%d\n", rtcData.recordCount, (int)sizeof(rtcData.buffer)/sizeof(SensorRecord));
+  Serial.printf("Buffered record %d/%d\n", rtcData.recordCount, RTC_BUFFER_SIZE);
   
   // Check if buffer is full
-  if (rtcData.recordCount >= sizeof(rtcData.buffer) / sizeof(SensorRecord)) {
+  if (rtcData.recordCount >= RTC_BUFFER_SIZE) {
     Serial.println("Buffer full, writing to ROM...");
     writeBufferToROM();
   }
@@ -333,21 +378,34 @@ void performMeasurement() {
 void syncAndUpload() {
   Serial.println("=== Sync and Upload Mode ===");
   
+  // Blink LED every 0.5s during WiFi operations
+  unsigned long lastBlink = 0;
+  bool ledState = false;
+  
   // Connect to WiFi
   WiFi.mode(WIFI_STA);
   WiFi.begin(config.ssid, config.password);
   
   Serial.printf("Connecting to %s", config.ssid);
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-    delay(500);
+  while (WiFi.status() != WL_CONNECTED && attempts < 60) {
+    delay(250);
     Serial.print(".");
+    
+    // Blink LED
+    if (millis() - lastBlink > 500) {
+      ledState = !ledState;
+      digitalWrite(LED_PIN, ledState ? LOW : HIGH);
+      lastBlink = millis();
+    }
+    
     attempts++;
   }
   Serial.println();
   
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("Failed to connect to WiFi!");
+    digitalWrite(LED_PIN, HIGH); // LED off
     return;
   }
   
@@ -355,13 +413,27 @@ void syncAndUpload() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
   
+  // Continue blinking during operations
+  auto blinkLED = [&]() {
+    if (millis() - lastBlink > 500) {
+      ledState = !ledState;
+      digitalWrite(LED_PIN, ledState ? LOW : HIGH);
+      lastBlink = millis();
+    }
+  };
+  
   // Sync time with NTP
   syncNTP();
+  blinkLED();
   
   // Upload data to InfluxDB
   uploadToInfluxDB();
   
+  // Turn off LED
+  digitalWrite(LED_PIN, HIGH);
+  
   WiFi.disconnect();
+  WiFi.mode(WIFI_OFF);
 }
 
 void syncNTP() {
@@ -391,6 +463,7 @@ void syncNTP() {
 
 void uploadToInfluxDB() {
   Serial.println("Uploading to InfluxDB...");
+  Serial.printf("ROM records: %d, RAM records: %d\n", rtcData.romRecordCount, rtcData.recordCount);
   
   WiFiClient client;
   
@@ -403,8 +476,8 @@ void uploadToInfluxDB() {
   String postData = "";
   int totalRecords = 0;
   
-  // Read from ROM
-  for (uint16_t i = 0; i < rtcData.romWriteIndex && i < MAX_ROM_RECORDS; i++) {
+  // Read from ROM (up to romRecordCount)
+  for (uint16_t i = 0; i < rtcData.romRecordCount && i < MAX_ROM_RECORDS; i++) {
     SensorRecord record;
     EEPROM.get(ROM_DATA_START + i * sizeof(SensorRecord), record);
     
@@ -418,9 +491,17 @@ void uploadToInfluxDB() {
     postData += String(timestamp) + "000000000\n"; // Nanosecond timestamp
     
     totalRecords++;
+    
+    // Send in batches if too large (>4KB)
+    if (postData.length() > 4000) {
+      if (!sendInfluxBatch(client, postData)) {
+        return;
+      }
+      postData = "";
+    }
   }
   
-  // Add buffered records
+  // Add buffered records from RAM
   for (uint16_t i = 0; i < rtcData.recordCount; i++) {
     SensorRecord& record = rtcData.buffer[i];
     
@@ -434,6 +515,13 @@ void uploadToInfluxDB() {
     postData += String(timestamp) + "000000000\n";
     
     totalRecords++;
+    
+    if (postData.length() > 4000) {
+      if (!sendInfluxBatch(client, postData)) {
+        return;
+      }
+      postData = "";
+    }
   }
   
   // Add current battery voltage
@@ -445,6 +533,22 @@ void uploadToInfluxDB() {
   
   Serial.printf("Uploading %d records...\n", totalRecords + 1);
   
+  // Send final batch
+  if (postData.length() > 0) {
+    if (sendInfluxBatch(client, postData)) {
+      // Clear ROM and RAM data on successful upload
+      rtcData.romWriteIndex = 0;
+      rtcData.romRecordCount = 0;
+      rtcData.recordCount = 0;
+      saveRTCData();
+      Serial.println("All data uploaded and cleared!");
+    }
+  }
+  
+  client.stop();
+}
+
+bool sendInfluxBatch(WiFiClient& client, String& postData) {
   // Send HTTP POST request
   String request = "POST /write?db=" + String(config.influxDb) + " HTTP/1.1\r\n";
   request += "Host: " + String(config.influxServer) + "\r\n";
@@ -467,8 +571,7 @@ void uploadToInfluxDB() {
   while (client.available() == 0) {
     if (millis() - timeout > 5000) {
       Serial.println("Timeout!");
-      client.stop();
-      return;
+      return false;
     }
   }
   
@@ -481,25 +584,24 @@ void uploadToInfluxDB() {
   Serial.println("Response: " + response);
   
   if (response.indexOf("204") > 0) {
-    Serial.println("Upload successful!");
-    
-    // Clear ROM data
-    rtcData.romWriteIndex = 0;
-    
-    // Clear buffer
-    rtcData.recordCount = 0;
-    
-    saveRTCData();
+    Serial.println("Batch upload successful!");
+    return true;
   } else {
-    Serial.println("Upload failed!");
+    Serial.println("Batch upload failed!");
+    return false;
   }
-  
-  client.stop();
 }
 
 void writeBufferToROM() {
-  // Write buffer to ROM starting at current write index
-  uint16_t recordsToWrite = min((int)rtcData.recordCount, (int)(MAX_ROM_RECORDS - rtcData.romWriteIndex));
+  // Calculate how many records we can write
+  uint16_t availableSpace = MAX_ROM_RECORDS - rtcData.romWriteIndex;
+  uint16_t recordsToWrite = min((int)rtcData.recordCount, (int)availableSpace);
+  
+  if (recordsToWrite == 0) {
+    Serial.println("ROM full! Cannot write more records.");
+    Serial.println("Please upload data to InfluxDB soon!");
+    return;
+  }
   
   Serial.printf("Writing %d records to ROM at index %d\n", recordsToWrite, rtcData.romWriteIndex);
   
@@ -511,20 +613,37 @@ void writeBufferToROM() {
   EEPROM.commit();
   
   rtcData.romWriteIndex += recordsToWrite;
+  rtcData.romRecordCount = rtcData.romWriteIndex; // Track total records in ROM
   rtcData.recordCount = 0; // Clear buffer
   
-  Serial.printf("ROM write complete. Next index: %d\n", rtcData.romWriteIndex);
+  Serial.printf("ROM write complete. Records in ROM: %d/%d\n", 
+                rtcData.romRecordCount, MAX_ROM_RECORDS);
+  
+  if (rtcData.romRecordCount >= MAX_ROM_RECORDS) {
+    Serial.println("WARNING: ROM storage full! Data upload needed!");
+  }
 }
 
 float readBatteryVoltage() {
-  // Read ADC (0-1023 for 0-1V on ESP8266)
+  // Wemos D1 Mini has built-in voltage divider on A0
+  // The divider is 220k/(100k+220k) = ~3.2V max input for 1V ADC
+  // For direct battery connection (no external divider needed):
+  // ADC reads 0-1023 for 0-3.2V approximately
+  
   int adcValue = analogRead(BATTERY_PIN);
   
-  // Calculate voltage (adjust divider ratio as needed)
-  // With 1M resistor to battery and direct connection, need actual divider calculation
-  // ESP8266 ADC max is 1V, 18650 is 3.0-4.2V, so we need voltage divider
-  // Assuming divider gives 1V at full charge (4.2V)
-  float voltage = (adcValue / 1023.0) * 4.2 * VOLTAGE_DIVIDER_RATIO;
+  // Wemos D1 Mini voltage divider allows measuring up to ~4.2V
+  // Formula: V = ADC * (3.2 / 1024)
+  // But actual calibration may vary, typical is:
+  float voltage = (adcValue / 1024.0) * 4.2;
+  
+  // For more accurate readings, calibrate with known voltages:
+  // Measure actual battery voltage with multimeter
+  // Adjust multiplier: voltage = adcValue * CALIBRATION_FACTOR
+  // Example: if 4.2V battery shows ADC=1023, and 3.0V shows ADC=732
+  // then factor = 4.2/1023 = 0.0041
+  
+  Serial.printf("ADC: %d, Voltage: %.2fV\n", adcValue, voltage);
   
   return voltage;
 }
@@ -565,14 +684,20 @@ void saveRTCData() {
 }
 
 void deepSleep(uint32_t seconds) {
-  Serial.printf("Entering deep sleep for %d seconds\n", seconds);
+  Serial.printf("Entering deep sleep for %d seconds (RF disabled)\n", seconds);
   Serial.flush();
   
   // Save RTC data before sleep
   saveRTCData();
   
-  // ESP8266 deep sleep (microseconds)
-  ESP.deepSleep(seconds * 1000000ULL, WAKE_RF_DEFAULT);
+  // Disable WiFi to save power
+  WiFi.mode(WIFI_OFF);
+  WiFi.forceSleepBegin();
+  delay(1);
+  
+  // Connect D0 (GPIO16) to RST to enable wake
+  // Deep sleep with RF disabled saves ~50µA
+  ESP.deepSleep(seconds * 1000000ULL, WAKE_RF_DISABLED);
 }
 
 // Simple Base64 encoding for HTTP Basic Auth
