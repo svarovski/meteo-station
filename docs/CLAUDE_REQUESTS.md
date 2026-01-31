@@ -29,3 +29,12 @@ Looks good. Please add more corrections:
 * Move all HTML/JS code to some static files.
 * Save all long strings to flash to save RAM. Or explain why it cannot or should not be done.
 * Split long methods longer than 20 lines in parts. Or explain why it should not be done.
+
+## Fourth request
+
+Thanks, it works. Next:
+* What lib do I need to add for #include <Adafruit_AHTX0.h>? I use PlatformIO and it is not found. You can just post platformio.ini modifications.
+* Please move all HTML code to external HTML files. I know it is possible with some ESP filesystem.
+* Reorder functions in file to avoid forward declarations when possible.
+* Rename esp8266_sensor.ino to cpp extension
+* Add separate classes with appropriate methods for Config, SensorRecord, RTCData
