@@ -84,6 +84,74 @@ Adafruit_AHTX0 aht;
 ESP8266WebServer server(80);
 String apSSID;
 
+// HTML templates stored in flash memory (PROGMEM)
+const char HTML_HEAD[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <style>
+    body{font-family:Arial;margin:20px;background:#f0f0f0}
+    .container{background:white;padding:20px;border-radius:8px;max-width:500px;margin:0 auto}
+    h1{color:#333;text-align:center}
+    input,select{width:100%;padding:10px;margin:8px 0;border:1px solid #ddd;border-radius:4px;box-sizing:border-box}
+    label{font-weight:bold;color:#555}
+    button{background:#4CAF50;color:white;padding:12px;border:none;border-radius:4px;cursor:pointer;width:100%;font-size:16px}
+    button:hover{background:#45a049}
+    .info{background:#e7f3fe;padding:10px;border-left:4px solid #2196F3;margin:10px 0}
+  </style>
+</head>
+<body>
+<div class='container'>
+)rawliteral";
+
+const char HTML_FOOTER[] PROGMEM = R"rawliteral(
+</div>
+</body>
+</html>
+)rawliteral";
+
+const char HTML_CONFIG_FORM[] PROGMEM = R"rawliteral(
+<h1>Sensor Configuration</h1>
+<div class='info'>Device: %s</div>
+<form action='/save' method='POST'>
+  <label>WiFi SSID:</label>
+  <input type='text' name='ssid' value='%s' required><br>
+  
+  <label>WiFi Password:</label>
+  <input type='password' name='password' value='%s'><br>
+  
+  <label>Measurement Interval (seconds):</label>
+  <input type='number' name='interval' value='%d' min='60' required><br>
+  
+  <label>InfluxDB Server (IP or hostname):</label>
+  <input type='text' name='server' value='%s' required><br>
+  
+  <label>InfluxDB Port:</label>
+  <input type='number' name='port' value='%d' required><br>
+  
+  <label>Database Name:</label>
+  <input type='text' name='database' value='%s' required><br>
+  
+  <label>InfluxDB Username:</label>
+  <input type='text' name='user' value='%s'><br>
+  
+  <label>InfluxDB Password:</label>
+  <input type='password' name='dbpass' value='%s'><br>
+  
+  <label>Measurement Name:</label>
+  <input type='text' name='measurement' value='%s'><br>
+  
+  <button type='submit'>Save & Restart</button>
+</form>
+)rawliteral";
+
+const char HTML_SAVE_SUCCESS[] PROGMEM = R"rawliteral(
+<h1>Configuration Saved!</h1>
+<p>Device will restart in 5 seconds...</p>
+<script>setTimeout(function(){window.location='/';},5000);</script>
+)rawliteral";
+
 // Forward declarations
 void enterConfigMode();
 void performMeasurement();
@@ -94,10 +162,28 @@ void loadRTCData();
 void saveRTCData();
 void writeBufferToROM();
 void uploadToInfluxDB();
+bool uploadAllRecords(WiFiClient& client);
+bool uploadROMRecords(WiFiClient& client, String& postData, int& totalRecords);
+bool uploadRAMRecords(WiFiClient& client, String& postData, int& totalRecords);
+void addBatteryReading(String& postData);
 bool sendInfluxBatch(WiFiClient& client, String& postData);
 void syncNTP();
 float readBatteryVoltage();
 void deepSleep(uint32_t seconds);
+String buildConfigPage();
+void handleRoot();
+void handleSave();
+bool connectWiFi();
+void blinkLED();
+bool validateSensorReadings(float temp, float hum);
+bool initializeSensor();
+void powerOnSensor();
+void powerOffSensor();
+uint32_t getCurrentTimestamp();
+SensorRecord createSensorRecord(float temp, float hum, uint32_t timestamp);
+void storeRecord(const SensorRecord& record);
+String buildInfluxLineProtocol(const SensorRecord& record);
+void clearStoredData();
 
 void setup() {
   Serial.begin(115200);
@@ -235,55 +321,44 @@ void enterConfigMode() {
 }
 
 void handleRoot() {
-  String html = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
-  html += "<style>body{font-family:Arial;margin:20px;background:#f0f0f0}";
-  html += ".container{background:white;padding:20px;border-radius:8px;max-width:500px;margin:0 auto}";
-  html += "h1{color:#333;text-align:center}input,select{width:100%;padding:10px;margin:8px 0;border:1px solid #ddd;border-radius:4px;box-sizing:border-box}";
-  html += "label{font-weight:bold;color:#555}";
-  html += "button{background:#4CAF50;color:white;padding:12px;border:none;border-radius:4px;cursor:pointer;width:100%;font-size:16px}";
-  html += "button:hover{background:#45a049}.info{background:#e7f3fe;padding:10px;border-left:4px solid #2196F3;margin:10px 0}";
-  html += "</style></head><body><div class='container'>";
-  html += "<h1>Sensor Configuration</h1>";
-  html += "<div class='info'>Device: " + apSSID + "</div>";
-  html += "<form action='/save' method='POST'>";
-  
-  html += "<label>WiFi SSID:</label>";
-  html += "<input type='text' name='ssid' value='" + String(config.ssid) + "' required><br>";
-  
-  html += "<label>WiFi Password:</label>";
-  html += "<input type='password' name='password' value='" + String(config.password) + "'><br>";
-  
-  html += "<label>Measurement Interval (seconds):</label>";
-  html += "<input type='number' name='interval' value='" + String(config.interval > 0 ? config.interval : 300) + "' min='60' required><br>";
-  
-  html += "<label>InfluxDB Server (IP or hostname):</label>";
-  html += "<input type='text' name='server' value='" + String(config.influxServer) + "' required><br>";
-  
-  html += "<label>InfluxDB Port:</label>";
-  html += "<input type='number' name='port' value='" + String(config.influxPort > 0 ? config.influxPort : 8086) + "' required><br>";
-  
-  html += "<label>Database Name:</label>";
-  html += "<input type='text' name='database' value='" + String(config.influxDb) + "' required><br>";
-  
-  html += "<label>InfluxDB Username:</label>";
-  html += "<input type='text' name='user' value='" + String(config.influxUser) + "'><br>";
-  
-  html += "<label>InfluxDB Password:</label>";
-  html += "<input type='password' name='dbpass' value='" + String(config.influxPass) + "'><br>";
-  
-  html += "<label>Measurement Name:</label>";
-  html += "<input type='text' name='measurement' value='" + String(strlen(config.influxMeasurement) > 0 ? config.influxMeasurement : "environment") + "'><br>";
-  
-  html += "<button type='submit'>Save & Restart</button>";
-  html += "</form></div></body></html>";
-  
+  String html = buildConfigPage();
   server.send(200, "text/html", html);
+}
+
+String buildConfigPage() {
+  String html;
+  html.reserve(2048); // Pre-allocate to avoid fragmentation
+  
+  // Add HTML head from PROGMEM
+  html = FPSTR(HTML_HEAD);
+  
+  // Build form with current config values
+  char formBuffer[1500];
+  snprintf_P(formBuffer, sizeof(formBuffer), 
+    PSTR(HTML_CONFIG_FORM),
+    apSSID.c_str(),
+    config.ssid,
+    config.password,
+    config.interval > 0 ? config.interval : 1800, // Default 30 min
+    config.influxServer,
+    config.influxPort > 0 ? config.influxPort : 8086,
+    config.influxDb,
+    config.influxUser,
+    config.influxPass,
+    strlen(config.influxMeasurement) > 0 ? config.influxMeasurement : "environment"
+  );
+  html += formBuffer;
+  
+  // Add footer from PROGMEM
+  html += FPSTR(HTML_FOOTER);
+  
+  return html;
 }
 
 void handleSave() {
   Serial.println("Saving configuration...");
   
-  // Get form data
+  // Get form data and populate config
   strncpy(config.ssid, server.arg("ssid").c_str(), sizeof(config.ssid) - 1);
   strncpy(config.password, server.arg("password").c_str(), sizeof(config.password) - 1);
   config.interval = server.arg("interval").toInt();
@@ -294,17 +369,18 @@ void handleSave() {
   strncpy(config.influxPass, server.arg("dbpass").c_str(), sizeof(config.influxPass) - 1);
   strncpy(config.influxMeasurement, server.arg("measurement").c_str(), sizeof(config.influxMeasurement) - 1);
   
-  // Set time offset to current time (will be updated on first NTP sync)
+  // Set time offset and magic number
   config.timeOffset = 1704067200; // 2024-01-01 00:00:00 UTC as default
   config.magic = CONFIG_MAGIC;
   
   saveConfig();
   
-  String html = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='5;url=/'>";
-  html += "<style>body{font-family:Arial;text-align:center;padding:50px;background:#f0f0f0}";
-  html += ".message{background:white;padding:30px;border-radius:8px;display:inline-block}</style></head>";
-  html += "<body><div class='message'><h1>Configuration Saved!</h1>";
-  html += "<p>Device will restart in 5 seconds...</p></div></body></html>";
+  // Send success page from PROGMEM
+  String html;
+  html.reserve(512);
+  html = FPSTR(HTML_HEAD);
+  html += FPSTR(HTML_SAVE_SUCCESS);
+  html += FPSTR(HTML_FOOTER);
   
   server.send(200, "text/html", html);
   
@@ -315,20 +391,13 @@ void handleSave() {
 void performMeasurement() {
   Serial.println("=== Taking Measurement ===");
   
-  // Power on AHT10
-  digitalWrite(AHT_POWER_PIN, HIGH);
-  delay(100); // Wait for sensor to stabilize
-  
-  // Initialize I2C and AHT10
-  Wire.begin();
-  
-  if (!aht.begin()) {
-    Serial.println("Failed to initialize AHT10!");
-    digitalWrite(AHT_POWER_PIN, LOW);
+  // Initialize and power on sensor
+  if (!initializeSensor()) {
+    powerOffSensor();
     return;
   }
   
-  // Read sensor
+  // Read sensor values
   sensors_event_t humidity_event, temp_event;
   aht.getEvent(&humidity_event, &temp_event);
   
@@ -337,62 +406,147 @@ void performMeasurement() {
   
   Serial.printf("Temperature: %.1f°C, Humidity: %.1f%%\n", temperature, humidity);
   
-  // Power off AHT10
-  digitalWrite(AHT_POWER_PIN, LOW);
+  // Power off sensor
+  powerOffSensor();
   
-  // Get current time (relative to offset)
+  // Validate readings
+  if (!validateSensorReadings(temperature, humidity)) {
+    return;
+  }
+  
+  // Get current timestamp
+  uint32_t currentTime = getCurrentTimestamp();
+  
+  // Create and store record
+  SensorRecord record = createSensorRecord(temperature, humidity, currentTime);
+  storeRecord(record);
+  
+  saveRTCData();
+}
+
+bool initializeSensor() {
+  powerOnSensor();
+  Wire.begin();
+  
+  if (!aht.begin()) {
+    Serial.println("Failed to initialize AHT10!");
+    return false;
+  }
+  
+  return true;
+}
+
+void powerOnSensor() {
+  digitalWrite(AHT_POWER_PIN, HIGH);
+  delay(100); // Wait for sensor to stabilize
+}
+
+void powerOffSensor() {
+  digitalWrite(AHT_POWER_PIN, LOW);
+}
+
+bool validateSensorReadings(float temp, float hum) {
+  if (isnan(temp) || isnan(hum)) {
+    Serial.println("Invalid sensor readings (NaN)");
+    return false;
+  }
+  
+  if (temp < -40 || temp > 85) {
+    Serial.println("Temperature out of valid range");
+    return false;
+  }
+  
+  if (hum < 0 || hum > 100) {
+    Serial.println("Humidity out of valid range");
+    return false;
+  }
+  
+  return true;
+}
+
+uint32_t getCurrentTimestamp() {
   uint32_t currentTime = millis() / 1000; // Seconds since boot
+  
   if (rtcData.lastSync > 0) {
     // Use wall clock time if synced
     time_t now = time(nullptr);
     currentTime = now;
   }
   
-  // Create compact record
+  return currentTime;
+}
+
+SensorRecord createSensorRecord(float temp, float hum, uint32_t timestamp) {
   SensorRecord record;
-  record.timestamp = (currentTime - config.timeOffset) & 0xFFFF; // Keep lower 16 bits
-  record.temperature = constrain(temperature + 100, 0, 255); // -100°C to +155°C
-  record.humidity = constrain(humidity, 0, 100);
-  
-  // Add to RTC buffer
+  record.timestamp = (timestamp - config.timeOffset) & 0xFFFF;
+  record.temperature = constrain(temp + 100, 0, 255);
+  record.humidity = constrain(hum, 0, 100);
+  return record;
+}
+
+void storeRecord(const SensorRecord& record) {
+  // Initialize RTC data if needed
   if (rtcData.magic != RTC_MAGIC) {
-    // Initialize RTC data
     rtcData.magic = RTC_MAGIC;
     rtcData.lastSync = 0;
     rtcData.recordCount = 0;
     rtcData.romWriteIndex = 0;
+    rtcData.romRecordCount = 0;
   }
   
+  // Add to buffer
   rtcData.buffer[rtcData.recordCount++] = record;
   Serial.printf("Buffered record %d/%d\n", rtcData.recordCount, RTC_BUFFER_SIZE);
   
-  // Check if buffer is full
+  // Write to ROM if buffer full
   if (rtcData.recordCount >= RTC_BUFFER_SIZE) {
     Serial.println("Buffer full, writing to ROM...");
     writeBufferToROM();
   }
-  
-  saveRTCData();
 }
 
 void syncAndUpload() {
   Serial.println("=== Sync and Upload Mode ===");
   
-  // Blink LED every 0.5s during WiFi operations
+  // Connect to WiFi with LED blinking
+  if (!connectWiFi()) {
+    digitalWrite(LED_PIN, HIGH); // LED off
+    return;
+  }
+  
+  Serial.println("WiFi connected");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+  
+  // Sync time with NTP
+  blinkLED();
+  syncNTP();
+  
+  // Upload data to InfluxDB
+  blinkLED();
+  uploadToInfluxDB();
+  
+  // Turn off LED and disconnect
+  digitalWrite(LED_PIN, HIGH);
+  WiFi.disconnect();
+  WiFi.mode(WIFI_OFF);
+}
+
+bool connectWiFi() {
   unsigned long lastBlink = 0;
   bool ledState = false;
   
-  // Connect to WiFi
   WiFi.mode(WIFI_STA);
   WiFi.begin(config.ssid, config.password);
   
   Serial.printf("Connecting to %s", config.ssid);
   int attempts = 0;
+  
   while (WiFi.status() != WL_CONNECTED && attempts < 60) {
     delay(250);
     Serial.print(".");
     
-    // Blink LED
+    // Blink LED every 500ms
     if (millis() - lastBlink > 500) {
       ledState = !ledState;
       digitalWrite(LED_PIN, ledState ? LOW : HIGH);
@@ -405,35 +559,21 @@ void syncAndUpload() {
   
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("Failed to connect to WiFi!");
-    digitalWrite(LED_PIN, HIGH); // LED off
-    return;
+    return false;
   }
   
-  Serial.println("WiFi connected");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  return true;
+}
+
+void blinkLED() {
+  static unsigned long lastBlink = 0;
+  static bool ledState = false;
   
-  // Continue blinking during operations
-  auto blinkLED = [&]() {
-    if (millis() - lastBlink > 500) {
-      ledState = !ledState;
-      digitalWrite(LED_PIN, ledState ? LOW : HIGH);
-      lastBlink = millis();
-    }
-  };
-  
-  // Sync time with NTP
-  syncNTP();
-  blinkLED();
-  
-  // Upload data to InfluxDB
-  uploadToInfluxDB();
-  
-  // Turn off LED
-  digitalWrite(LED_PIN, HIGH);
-  
-  WiFi.disconnect();
-  WiFi.mode(WIFI_OFF);
+  if (millis() - lastBlink > 500) {
+    ledState = !ledState;
+    digitalWrite(LED_PIN, ledState ? LOW : HIGH);
+    lastBlink = millis();
+  }
 }
 
 void syncNTP() {
@@ -472,80 +612,108 @@ void uploadToInfluxDB() {
     return;
   }
   
-  // Build line protocol data
+  bool success = uploadAllRecords(client);
+  
+  if (success) {
+    clearStoredData();
+    Serial.println("All data uploaded and cleared!");
+  }
+  
+  client.stop();
+}
+
+bool uploadAllRecords(WiFiClient& client) {
   String postData = "";
   int totalRecords = 0;
+  bool allSuccess = true;
   
-  // Read from ROM (up to romRecordCount)
+  // Upload ROM records
+  if (!uploadROMRecords(client, postData, totalRecords)) {
+    allSuccess = false;
+  }
+  
+  // Upload RAM records
+  if (!uploadRAMRecords(client, postData, totalRecords)) {
+    allSuccess = false;
+  }
+  
+  // Upload current battery voltage
+  addBatteryReading(postData);
+  totalRecords++;
+  
+  Serial.printf("Uploading %d records...\n", totalRecords);
+  
+  // Send final batch
+  if (postData.length() > 0) {
+    if (!sendInfluxBatch(client, postData)) {
+      allSuccess = false;
+    }
+  }
+  
+  return allSuccess;
+}
+
+bool uploadROMRecords(WiFiClient& client, String& postData, int& totalRecords) {
   for (uint16_t i = 0; i < rtcData.romRecordCount && i < MAX_ROM_RECORDS; i++) {
     SensorRecord record;
     EEPROM.get(ROM_DATA_START + i * sizeof(SensorRecord), record);
     
-    uint32_t timestamp = config.timeOffset + record.timestamp;
-    float temp = record.temperature - 100.0;
-    float hum = record.humidity;
-    
-    postData += String(config.influxMeasurement) + " ";
-    postData += "temperature=" + String(temp, 1) + ",";
-    postData += "humidity=" + String(hum, 1) + " ";
-    postData += String(timestamp) + "000000000\n"; // Nanosecond timestamp
-    
+    postData += buildInfluxLineProtocol(record);
     totalRecords++;
     
-    // Send in batches if too large (>4KB)
+    // Send in batches if too large
     if (postData.length() > 4000) {
       if (!sendInfluxBatch(client, postData)) {
-        return;
+        return false;
       }
       postData = "";
     }
   }
-  
-  // Add buffered records from RAM
+  return true;
+}
+
+bool uploadRAMRecords(WiFiClient& client, String& postData, int& totalRecords) {
   for (uint16_t i = 0; i < rtcData.recordCount; i++) {
-    SensorRecord& record = rtcData.buffer[i];
-    
-    uint32_t timestamp = config.timeOffset + record.timestamp;
-    float temp = record.temperature - 100.0;
-    float hum = record.humidity;
-    
-    postData += String(config.influxMeasurement) + " ";
-    postData += "temperature=" + String(temp, 1) + ",";
-    postData += "humidity=" + String(hum, 1) + " ";
-    postData += String(timestamp) + "000000000\n";
-    
+    postData += buildInfluxLineProtocol(rtcData.buffer[i]);
     totalRecords++;
     
     if (postData.length() > 4000) {
       if (!sendInfluxBatch(client, postData)) {
-        return;
+        return false;
       }
       postData = "";
     }
   }
+  return true;
+}
+
+String buildInfluxLineProtocol(const SensorRecord& record) {
+  uint32_t timestamp = config.timeOffset + record.timestamp;
+  float temp = record.temperature - 100.0;
+  float hum = record.humidity;
   
-  // Add current battery voltage
+  String line = String(config.influxMeasurement) + " ";
+  line += "temperature=" + String(temp, 1) + ",";
+  line += "humidity=" + String(hum, 1) + " ";
+  line += String(timestamp) + "000000000\n";
+  
+  return line;
+}
+
+void addBatteryReading(String& postData) {
   float batteryVoltage = readBatteryVoltage();
   time_t now = time(nullptr);
+  
   postData += String(config.influxMeasurement) + " ";
   postData += "battery_voltage=" + String(batteryVoltage, 2) + " ";
   postData += String(now) + "000000000\n";
-  
-  Serial.printf("Uploading %d records...\n", totalRecords + 1);
-  
-  // Send final batch
-  if (postData.length() > 0) {
-    if (sendInfluxBatch(client, postData)) {
-      // Clear ROM and RAM data on successful upload
-      rtcData.romWriteIndex = 0;
-      rtcData.romRecordCount = 0;
-      rtcData.recordCount = 0;
-      saveRTCData();
-      Serial.println("All data uploaded and cleared!");
-    }
-  }
-  
-  client.stop();
+}
+
+void clearStoredData() {
+  rtcData.romWriteIndex = 0;
+  rtcData.romRecordCount = 0;
+  rtcData.recordCount = 0;
+  saveRTCData();
 }
 
 bool sendInfluxBatch(WiFiClient& client, String& postData) {

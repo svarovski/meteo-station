@@ -1,4 +1,4 @@
-**First Request**
+## First Request
 
 I want to make device based on ESP8266 with AHT10 sensor and 18650 battery that will be used to measure temperature and humidity on remote location. Power of AHT10 will come from ESP pin 16 to have it switchable. ESP power comes from 18650 via AMS1117 voltage regulator. Also, plus of 18650 is connected to ESP A0 pin via 1M resistor and also A0 pin is connected to ground via capacitor. And there's a button connected to ground and RST pin of ESP to wake up device on button press. I need a program for this device that will do following:
 * When unconfigured or button is pressed for more than 5 second, it should create wifi network without password and name like "sensor-<mac address>" and show page for configuration that include: wifi network to connect to in normal conditions, interval between measures in seconds, address of InfluxDB server where to send data to, username/password to access that server. All config then saved to ROM.
@@ -9,7 +9,8 @@ I want to make device based on ESP8266 with AHT10 sensor and 18650 battery that 
 * Also, when connected to WiFi device should sync time with some NTP server.
 Any advises are also welcome.
 
-** Second request (correction)**
+## Second request
+
 I checked your recommendations and code. Here's some corrections:
 * I have MCP1700, not AMS1117. My mistake.
 * I use Wemos D1 Mini, not plain ESP8266. And Wemos board already has voltage divider on pin A0.
@@ -21,3 +22,10 @@ I checked your recommendations and code. Here's some corrections:
 * Static IP for WiFi client is not possible.
 * Every action should be accompanied with internal Wemod D1 Mini LED blink. Simple measurement - turn on LED when starting, turn off when finished. Button wake up - blink led every 0.5s until transfer is complete. Initial of button-cause configuration - turn LED on until config is complete.
 Please correct files and give more advices.
+
+## Third correction (was launched too early and incomplete)
+
+Looks good. Please add more corrections:
+* Move all HTML/JS code to some static files.
+* Save all long strings to flash to save RAM. Or explain why it cannot or should not be done.
+* Split long methods longer than 20 lines in parts. Or explain why it should not be done.
