@@ -28,6 +28,10 @@ public:
     bool isValid() const;
     void setDefaults();
     void print() const;
+    
+    // Time offset management
+    void updateTimeOffset(uint32_t currentTime);
+    String getTimeOffsetString() const;
 };
 
 #endif

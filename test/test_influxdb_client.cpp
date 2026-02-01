@@ -1,9 +1,9 @@
 #include <unity.h>
-#include "../src/InfluxDBClient.h"
+#include "../src/InfluxDBWrapper.h"
 #include "../src/Config.h"
 #include "../src/SensorRecord.h"
 
-InfluxDBClient testClient;
+InfluxDBWrapper testClient;
 Config testConfig;
 
 void setUp(void) {
@@ -21,7 +21,7 @@ void tearDown(void) {
 }
 
 void test_influxdb_client_initialization(void) {
-    InfluxDBClient client;
+    InfluxDBWrapper client;
     
     // Should not be initialized yet
     String error = client.getLastError();
@@ -29,7 +29,7 @@ void test_influxdb_client_initialization(void) {
 }
 
 void test_influxdb_client_begin_with_valid_config(void) {
-    InfluxDBClient client;
+    InfluxDBWrapper client;
     
     bool success = client.begin(&testConfig);
     
@@ -39,7 +39,7 @@ void test_influxdb_client_begin_with_valid_config(void) {
 }
 
 void test_influxdb_client_begin_with_null_config(void) {
-    InfluxDBClient client;
+    InfluxDBWrapper client;
     
     bool success = client.begin(nullptr);
     
@@ -47,7 +47,7 @@ void test_influxdb_client_begin_with_null_config(void) {
 }
 
 void test_influxdb_client_begin_with_invalid_config(void) {
-    InfluxDBClient client;
+    InfluxDBWrapper client;
     Config invalidConfig;
     invalidConfig.setDefaults();
     // Don't set magic number, making it invalid
@@ -59,7 +59,7 @@ void test_influxdb_client_begin_with_invalid_config(void) {
 
 void test_influxdb_client_sensor_record_write(void) {
     // This test verifies the API works, not that it connects
-    InfluxDBClient client;
+    InfluxDBWrapper client;
     client.begin(&testConfig);
     
     SensorRecord record = SensorRecord::create(22.5, 65.0, 3600, 0);
@@ -72,7 +72,7 @@ void test_influxdb_client_sensor_record_write(void) {
 }
 
 void test_influxdb_client_battery_write(void) {
-    InfluxDBClient client;
+    InfluxDBWrapper client;
     client.begin(&testConfig);
     
     float batteryVoltage = 3.87;
@@ -85,7 +85,7 @@ void test_influxdb_client_battery_write(void) {
 }
 
 void test_influxdb_client_flush(void) {
-    InfluxDBClient client;
+    InfluxDBWrapper client;
     client.begin(&testConfig);
     
     bool flushed = client.flush();
@@ -95,7 +95,7 @@ void test_influxdb_client_flush(void) {
 }
 
 void test_influxdb_client_get_error_before_init(void) {
-    InfluxDBClient client;
+    InfluxDBWrapper client;
     
     String error = client.getLastError();
     
@@ -113,7 +113,7 @@ void test_influxdb_client_with_authentication(void) {
     strcpy(authConfig.influxMeasurement, "test_measurement");
     authConfig.magic = CONFIG_MAGIC;
     
-    InfluxDBClient client;
+    InfluxDBWrapper client;
     bool success = client.begin(&authConfig);
     
     // Should initialize successfully with auth credentials
@@ -123,7 +123,7 @@ void test_influxdb_client_with_authentication(void) {
 void test_influxdb_client_destructor(void) {
     // Test that destructor doesn't crash
     {
-        InfluxDBClient client;
+        InfluxDBWrapper client;
         client.begin(&testConfig);
         // Client goes out of scope and destructor is called
     }
@@ -134,7 +134,7 @@ void test_influxdb_client_destructor(void) {
 
 // Integration test - multiple writes
 void test_influxdb_client_multiple_writes(void) {
-    InfluxDBClient client;
+    InfluxDBWrapper client;
     client.begin(&testConfig);
     
     // Write multiple sensor records

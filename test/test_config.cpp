@@ -76,7 +76,7 @@ void test_config_time_offset_string(void) {
 
 void test_config_load_invalid(void) {
     // Clear EEPROM at config address
-    for (int i = 0; i < sizeof(Config); i++) {
+    for (size_t i = 0; i < sizeof(Config); i++) {
         EEPROM.write(CONFIG_ADDR + i, 0);
     }
     EEPROM.commit();

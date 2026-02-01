@@ -1,5 +1,5 @@
-#ifndef INFLUXDB_CLIENT_H
-#define INFLUXDB_CLIENT_H
+#ifndef INFLUXDB_WRAPPER_H
+#define INFLUXDB_WRAPPER_H
 
 #include <Arduino.h>
 #include <InfluxDbClient.h>
@@ -7,7 +7,7 @@
 #include "Config.h"
 #include "SensorRecord.h"
 
-class InfluxDBClient {
+class InfluxDBWrapper {
 private:
     InfluxDBClient* client;
     Point* sensorPoint;
@@ -15,8 +15,8 @@ private:
     bool initialized;
     
 public:
-    InfluxDBClient();
-    ~InfluxDBClient();
+    InfluxDBWrapper();
+    ~InfluxDBWrapper();
     
     // Initialize with configuration
     bool begin(Config* cfg);
