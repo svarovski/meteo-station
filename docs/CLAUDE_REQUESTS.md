@@ -38,3 +38,7 @@ Thanks, it works. Next:
 * Reorder functions in file to avoid forward declarations when possible.
 * Rename esp8266_sensor.ino to cpp extension
 * Add separate classes with appropriate methods for Config, SensorRecord, RTCData
+
+## Fifth request
+
+Files Config.cpp, SensorRecord.cpp and RTCData.cpp are missing. Please provide them
