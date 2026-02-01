@@ -51,3 +51,13 @@ Good. Some more corrections
 * Change SensorRecord.timestamp meaning from seconds since offset to minutes since offset. Adjust all calculations accordingly.
 * Look for library to use to connect to InfluxDB. If not found, move InfluxDB functions to separate class.
 * Add unit test for all .cpp files and place the in folder `test``
+
+## Request seven
+
+* I didn't find success.html file in my project copy. Can you provide it?
+* InfluxDBClient.cpp file is missing. Can you also provide it?
+* I get following errors when running tests: (skipped)
+
+## Request eight
+
+You forgot to rename files InfluxDBClient to InfluxDBWrapper. Also, there's more errors from tests: (skipped)

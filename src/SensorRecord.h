@@ -5,23 +5,26 @@
 
 // Compact 4-byte sensor record
 struct __attribute__((packed)) SensorRecord {
-    uint16_t timestamp;   // Seconds since timeOffset (max ~18 hours)
+    uint16_t timestamp;   // MINUTES since timeOffset (max ~45 days range)
     int8_t temperature;   // (actual_temp + 100) = -100°C to +155°C
     uint8_t humidity;     // 0-100%
     
     // Factory method to create record from float values
-    static SensorRecord create(float temp, float hum, uint32_t timestamp, uint32_t timeOffset);
+    // timestampSeconds is in seconds, will be converted to minutes
+    static SensorRecord create(float temp, float hum, uint32_t timestampSeconds, uint32_t timeOffsetSeconds);
     
     // Decode to float values
     float getTemperature() const;
     float getHumidity() const;
-    uint32_t getTimestamp(uint32_t timeOffset) const;
+    
+    // Get timestamp in seconds
+    uint32_t getTimestampSeconds(uint32_t timeOffsetSeconds) const;
     
     // Validation
     bool isValid() const;
     
     // InfluxDB line protocol
-    String toInfluxLine(const char* measurement, uint32_t timeOffset) const;
+    String toInfluxLine(const char* measurement, uint32_t timeOffsetSeconds) const;
 };
 
 #endif

@@ -57,5 +57,5 @@ void RTCData::print() const {
     Serial.println("=== RTC Data ===");
     Serial.printf("Records in buffer: %d/%d\n", recordCount, RTC_BUFFER_SIZE);
     Serial.printf("Records in ROM: %d\n", romRecordCount);
-    Serial.printf("Last sync: %lu\n", lastSync);
+    Serial.printf("Last sync: %u\n", (unsigned int)lastSync);
 }
