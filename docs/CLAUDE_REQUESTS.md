@@ -42,3 +42,12 @@ Thanks, it works. Next:
 ## Fifth request
 
 Files Config.cpp, SensorRecord.cpp and RTCData.cpp are missing. Please provide them
+
+## Request number six
+
+Good. Some more corrections
+* Add unit tests for all .cpp files.
+* Change timeOffset used in timestamp calculation from fixed timestamp to datetime of last sync or device start
+* Change SensorRecord.timestamp meaning from seconds since offset to minutes since offset. Adjust all calculations accordingly.
+* Look for library to use to connect to InfluxDB. If not found, move InfluxDB functions to separate class.
+* Add unit test for all .cpp files and place the in folder `test``

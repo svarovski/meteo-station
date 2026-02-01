@@ -9,7 +9,22 @@ void Config::setDefaults() {
     interval = 1800; // 30 minutes default
     influxPort = 8086;
     strcpy(influxMeasurement, "environment");
-    timeOffset = 1704067200; // 2024-01-01 00:00:00 UTC
+    timeOffset = 0; // Will be set on first sync or device start
+}
+
+void Config::updateTimeOffset(uint32_t currentTime) {
+    // Round down to nearest 65536 minutes boundary
+    // This gives us ~45 days range with 16-bit minute timestamps
+    timeOffset = (currentTime / 65536) * 65536;
+    Serial.printf("Time offset updated to: %lu (%s)\n", timeOffset, 
+                  getTimeOffsetString().c_str());
+}
+
+String Config::getTimeOffsetString() const {
+    time_t t = timeOffset;
+    char buffer[32];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", gmtime(&t));
+    return String(buffer);
 }
 
 bool Config::load() {

@@ -1,8 +1,13 @@
 #include "SensorRecord.h"
 
-SensorRecord SensorRecord::create(float temp, float hum, uint32_t timestamp, uint32_t timeOffset) {
+SensorRecord SensorRecord::create(float temp, float hum, uint32_t timestampSeconds, uint32_t timeOffsetSeconds) {
     SensorRecord record;
-    record.timestamp = (timestamp - timeOffset) & 0xFFFF;
+    
+    // Convert seconds to minutes for storage
+    uint32_t timestampMinutes = timestampSeconds / 60;
+    uint32_t offsetMinutes = timeOffsetSeconds / 60;
+    
+    record.timestamp = (timestampMinutes - offsetMinutes) & 0xFFFF;
     record.temperature = constrain(temp + 100, 0, 255);
     record.humidity = constrain(hum, 0, 100);
     return record;
@@ -16,8 +21,11 @@ float SensorRecord::getHumidity() const {
     return humidity;
 }
 
-uint32_t SensorRecord::getTimestamp(uint32_t timeOffset) const {
-    return timeOffset + timestamp;
+uint32_t SensorRecord::getTimestampSeconds(uint32_t timeOffsetSeconds) const {
+    // Convert stored minutes back to seconds
+    uint32_t offsetMinutes = timeOffsetSeconds / 60;
+    uint32_t absoluteMinutes = offsetMinutes + timestamp;
+    return absoluteMinutes * 60;
 }
 
 bool SensorRecord::isValid() const {
@@ -28,10 +36,10 @@ bool SensorRecord::isValid() const {
     return (temp >= -100 && temp <= 155 && hum >= 0 && hum <= 100);
 }
 
-String SensorRecord::toInfluxLine(const char* measurement, uint32_t timeOffset) const {
+String SensorRecord::toInfluxLine(const char* measurement, uint32_t timeOffsetSeconds) const {
     String line = String(measurement) + " ";
     line += "temperature=" + String(getTemperature(), 1) + ",";
     line += "humidity=" + String(getHumidity(), 1) + " ";
-    line += String(getTimestamp(timeOffset)) + "000000000\n";
+    line += String(getTimestampSeconds(timeOffsetSeconds)) + "000000000\n";
     return line;
 }
