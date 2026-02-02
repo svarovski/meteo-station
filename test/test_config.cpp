@@ -2,14 +2,14 @@
 #include "../src/Config.h"
 #include <EEPROM.h>
 
-Config testConfig;
+static Config testConfig;
 
-void setUp(void) {
+static void setUp(void) {
     // Initialize EEPROM for testing
     EEPROM.begin(512);
 }
 
-void tearDown(void) {
+static void tearDown(void) {
     // Clean up after each test
 }
 

@@ -3,10 +3,10 @@
 #include "../src/Config.h"
 #include "../src/SensorRecord.h"
 
-InfluxDBWrapper testClient;
-Config testConfig;
+static InfluxDBWrapper testClient;
+static Config testConfig;
 
-void setUp(void) {
+static void setUp(void) {
     // Setup test configuration
     testConfig.setDefaults();
     strcpy(testConfig.influxServer, "192.168.1.100");
@@ -16,7 +16,7 @@ void setUp(void) {
     testConfig.magic = CONFIG_MAGIC;
 }
 
-void tearDown(void) {
+static void tearDown(void) {
     // Cleanup
 }
 
