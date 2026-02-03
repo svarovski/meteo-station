@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Script to run all tests individually
-# Each test must run separately to avoid multiple definition errors
+# Script to run all tests individually using separate test environments
+# Each test environment compiles only ONE test file
 
 set -e  # Exit on first error
 
@@ -11,22 +11,22 @@ echo "========================================"
 echo ""
 
 echo "[1/4] Testing Config..."
-pio test -f test_config
+pio test -e test_config
 echo "✓ Config tests passed"
 echo ""
 
 echo "[2/4] Testing SensorRecord..."
-pio test -f test_sensor_record
+pio test -e test_sensor_record
 echo "✓ SensorRecord tests passed"
 echo ""
 
 echo "[3/4] Testing RTCData..."
-pio test -f test_rtc_data
+pio test -e test_rtc_data
 echo "✓ RTCData tests passed"
 echo ""
 
 echo "[4/4] Testing InfluxDBWrapper..."
-pio test -f test_influxdb_wrapper
+pio test -e test_influxdb_wrapper
 echo "✓ InfluxDBWrapper tests passed"
 echo ""
 
