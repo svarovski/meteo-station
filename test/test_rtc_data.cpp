@@ -2,7 +2,7 @@
 #include "../src/RTCData.h"
 #include "../src/SensorRecord.h"
 
-RTCData testRtcData;
+static RTCData testRtcData;
 
 void setUp(void) {
     // Reset RTC data before each test

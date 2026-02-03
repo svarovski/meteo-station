@@ -16,7 +16,7 @@ void Config::updateTimeOffset(uint32_t currentTime) {
     // Round down to nearest 65536 minutes boundary
     // This gives us ~45 days range with 16-bit minute timestamps
     timeOffset = (currentTime / 65536) * 65536;
-    Serial.printf("Time offset updated to: %lu (%s)\n", timeOffset, 
+    Serial.printf("Time offset updated to: %u (%s)\n", (unsigned int)timeOffset, 
                   getTimeOffsetString().c_str());
 }
 

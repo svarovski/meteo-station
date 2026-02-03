@@ -4,12 +4,12 @@
 
 static Config testConfig;
 
-static void setUp(void) {
+void setUp(void) {
     // Initialize EEPROM for testing
     EEPROM.begin(512);
 }
 
-static void tearDown(void) {
+void tearDown(void) {
     // Clean up after each test
 }
 

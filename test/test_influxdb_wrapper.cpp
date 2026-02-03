@@ -6,7 +6,7 @@
 static InfluxDBWrapper testClient;
 static Config testConfig;
 
-static void setUp(void) {
+void setUp(void) {
     // Setup test configuration
     testConfig.setDefaults();
     strcpy(testConfig.influxServer, "192.168.1.100");
@@ -16,7 +16,7 @@ static void setUp(void) {
     testConfig.magic = CONFIG_MAGIC;
 }
 
-static void tearDown(void) {
+void tearDown(void) {
     // Cleanup
 }
 
