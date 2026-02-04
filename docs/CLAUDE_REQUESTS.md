@@ -61,3 +61,63 @@ Good. Some more corrections
 ## Request eight
 
 You forgot to rename files InfluxDBClient to InfluxDBWrapper. Also, there's more errors from tests: (skipped)
+
+## Request nine
+
+* Can you maintain correct directory structure in downloadable archive?
+* Please add test compile options to get rid of warnings like:
+/home/gena/.platformio/packages/toolchain-xtensa/bin/../lib/gcc/xtensa-lx106-elf/4.8.2/../../../../xtensa-lx106-elf/bin/ld: .pio/build/d1_mini_lite/test/test_influxdb_client.cpp.o:/home/gena/ws/smart-home/meteo-station/test/test_influxdb_client.cpp:7: multiple definition of testConfig'; .pio/build/d1_mini_lite/test/test_config.cpp.o:/home/gena/ws/smart-home/meteo-station/test/test_config.cpp:5: first defined here
+/home/gena/.platformio/packages/toolchain-xtensa/bin/../lib/gcc/xtensa-lx106-elf/4.8.2/../../../../xtensa-lx106-elf/bin/ld: .pio/build/d1_mini_lite/test/test_influxdb_client.cpp.o: in function setUp':
+/home/gena/ws/smart-home/meteo-station/test/test_influxdb_client.cpp:9: multiple definition of `setUp'; .pio/build/d1_mini_lite/test/test_config.cpp.o:/home/gena/ws/smart-home/meteo-station/test/test_config.cpp:7: first defined here
+* Build fails with error. How to fix it? Device is connected to USB and present in system as /dev/ttyUSB0
+collect2: error: ld returned 1 exit status
+*** [.pio/build/d1_mini_lite/firmware.elf] Error 1
+Uploading stage has failed, see errors above. Use pio test -vvv option to enable verbose output.
+
+## Request 10
+
+Good. Please correct platformio.ini:
+* Add
+
+-monitor_filters =
+-  default   ; Remove typical terminal control codes from input
+-  time      ; Add timestamp with milliseconds for each new line
+-  log2file  ; Log data to a file “platformio-device-monitor-*.log” located in the current working directory
+-  colorize
+-  esp8266_exception_decoder
+-build_type = debug
+* change library tobiasschuerg/InfluxDB Client for Arduino@^3.13.0 to more correct name tobiasschuerg/ESP8266 Influxdb@^3.13.2 for ESP8266
+* Rename test_influxdb_client.cpp to test_influxdb_wrapper.cpp .
+* Move all MD files except README.md to docs folder.
+* Tests still do not work: (skipped errors)
+* Uploading stage has failed, see errors above. Use `pio test -vvv` option to enable verbose output.
+Is it possible that you run tests yourself and fix code until it works?
+
+## Request 11
+
+* There's still problem with tests: (errors skipped)
+
+## Request 12
+
+* Tests still don't work (errors skipped)
+
+## Request 13
+
+Please don't forget that all MD files except README.md should be in docs folder. And there's  still errors in tests (errors skipped)
+
+## Request 14
+
+Adjust permissions of run_all_tests.sh to include execution permissions. And there's still test errors: (errors skipped)
+Check this docs: https://docs.platformio.org/en/latest/advanced/unit-testing/index.html. Tests should be moved to separate folders, not separate environments. Remove environments and add separate folders. Also, remove run_all_tests.sh if it is not needed anymore.
+
+## Request 15
+
+Let's rename all tests to simply test.cpp. Keep them in separate folders, of course. But there's still test failures: (errors skipped)
+
+## Request 16
+
+* You forgot to include FINAL_SOLUTION to archive, please correct.
+* Do we need separate section for tests in platformio.ini? It is missing now.
+* sensor_main.cpp is quite big and it's code is not covered with tests. What block of code can be moved to external files and covered with unit tests. Content of main file should be minimal and basically just config and calls to other classes.
+* sensor_main.cpp is still compiled with tests and causes error.
+
