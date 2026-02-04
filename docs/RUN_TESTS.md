@@ -1,87 +1,118 @@
-# How to Run Tests
+# Running Tests
 
-## Solution: Separate Test Environments
+## Test Structure
 
-Each test file has its own environment in `platformio.ini`:
-- `env:test_config`
-- `env:test_sensor_record`
-- `env:test_rtc_data`
-- `env:test_influxdb_wrapper`
+Each test is in its own directory under `test/`:
 
-This prevents multiple definition errors by compiling only ONE test file at a time.
+```
+test/
+├── test_config/
+│   └── test_config.cpp           (7 tests)
+├── test_sensor_record/
+│   └── test_sensor_record.cpp    (11 tests)
+├── test_rtc_data/
+│   └── test_rtc_data.cpp         (10 tests)
+└── test_influxdb_wrapper/
+    └── test_influxdb_wrapper.cpp (11 tests)
+```
+
+This structure ensures each test compiles independently, avoiding multiple definition errors.
 
 ## Running Tests
 
-### Option 1: Automated Script (Recommended)
+### Run All Tests
 ```bash
-./run_all_tests.sh
+pio test
 ```
 
-### Option 2: Individual Tests
+PlatformIO will automatically discover and run each test directory.
+
+### Run Specific Test
 ```bash
-# Test Config (7 tests)
-pio test -e test_config
-
-# Test SensorRecord (11 tests)
-pio test -e test_sensor_record
-
-# Test RTCData (10 tests)
-pio test -e test_rtc_data
-
-# Test InfluxDBWrapper (11 tests)
-pio test -e test_influxdb_wrapper
+pio test -f test_config
+pio test -f test_sensor_record
+pio test -f test_rtc_data
+pio test -f test_influxdb_wrapper
 ```
 
-### Option 3: All Tests (One Command)
+### Verbose Output
 ```bash
-pio test -e test_config -e test_sensor_record -e test_rtc_data -e test_influxdb_wrapper
+pio test -v
+pio test -vv   # Even more verbose
+pio test -vvv  # Maximum verbosity
 ```
 
-## Expected Output (Per Test Environment)
+## Expected Output
 
 ```
-Testing test_config
-Environment: test_config
-...
-✓ test_config_default_values
-✓ test_config_magic_validation  
-✓ test_config_save_and_load
-✓ test_config_time_offset_update
-✓ test_config_time_offset_string
-✓ test_config_load_invalid
+Testing...
+test_config/*
+  ✓ test_config_default_values
+  ✓ test_config_magic_validation
+  ... (5 more tests)
+  
+test_sensor_record/*
+  ✓ test_sensor_record_create
+  ✓ test_sensor_record_get_temperature
+  ... (9 more tests)
 
-6 Tests 0 Failures 0 Ignored
-OK
+test_rtc_data/*
+  ✓ test_rtc_data_initialization
+  ... (9 more tests)
+
+test_influxdb_wrapper/*
+  ✓ test_influxdb_client_initialization
+  ... (10 more tests)
+
+======================================
+39 Tests 0 Failures 0 Ignored
+SUCCESS
 ```
 
 ## Building Main Application
 
-To build and upload the main application (not tests):
-
 ```bash
-# Build
-pio run -e d1_mini
+# Build only
+pio run
 
-# Upload
-pio run -e d1_mini --target upload
+# Build and upload
+pio run --target upload
 
-# Monitor
-pio device monitor
+# Upload filesystem (HTML files)
+pio run --target uploadfs
 ```
 
-## Why Separate Environments?
+## Test Details
 
-PlatformIO's default behavior compiles ALL test files together, causing:
-- Multiple definition of `setup()`, `loop()`, `setUp()`, `tearDown()`
+| Test Directory | Tests | What It Tests |
+|----------------|-------|---------------|
+| test_config | 7 | Configuration management, EEPROM, time offset |
+| test_sensor_record | 11 | Data encoding, timestamp conversion, validation |
+| test_rtc_data | 10 | RTC memory, buffer management, persistence |
+| test_influxdb_wrapper | 11 | InfluxDB client, data upload, error handling |
 
-Solution: Use `test_filter` in separate environments to compile only one test file per environment.
+## Troubleshooting
 
-## Total Test Count
+### Tests fail to compile
+```bash
+# Clean build
+pio test -c
 
-- **test_config**: 7 tests
-- **test_sensor_record**: 11 tests  
-- **test_rtc_data**: 10 tests
-- **test_influxdb_wrapper**: 11 tests
-- **TOTAL**: 39 tests
+# Or clean everything
+rm -rf .pio
+pio test
+```
 
-All tests run on actual ESP8266 hardware for real-world validation! 🎯
+### Device not found
+Update `platformio.ini`:
+```ini
+upload_port = /dev/ttyUSB0  # or /dev/ttyACM0, etc.
+```
+
+### Permission denied
+```bash
+sudo usermod -a -G dialout $USER
+# Log out and back in
+```
+
+Tests run on actual ESP8266 hardware for complete validation! 🎯
