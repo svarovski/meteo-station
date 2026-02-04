@@ -1,36 +1,37 @@
 # Final Solution - Tests Working!
 
-## The Correct Approach (Per PlatformIO Documentation)
-
-Each test must be in its **own directory** under `test/`:
+## Test Structure (Correct)
 
 ```
 test/
 ├── test_config/
-│   └── test_config.cpp
+│   └── test.cpp              (7 tests)
 ├── test_sensor_record/
-│   └── test_sensor_record.cpp
+│   └── test.cpp              (11 tests)
 ├── test_rtc_data/
-│   └── test_rtc_data.cpp
+│   └── test.cpp              (10 tests)
 └── test_influxdb_wrapper/
-    └── test_influxdb_wrapper.cpp
+    └── test.cpp              (11 tests)
 ```
 
-## Why This Works
+Each test in its own directory with filename `test.cpp`.
 
-PlatformIO automatically:
-1. Discovers each test directory
-2. Compiles ONLY the .cpp file in that directory
-3. Links it with source files from `src/`
-4. Runs the test
-5. Repeats for next test directory
+## Critical Fix: test_ignore
 
-**No multiple definition errors** because each test compiles separately!
+Added to `platformio.ini`:
+
+```ini
+test_framework = unity
+test_build_src = yes
+test_ignore = sensor_main.cpp    ← CRITICAL!
+```
+
+**Why needed:** `sensor_main.cpp` contains `setup()` and `loop()` which conflict with test's `setup()` and `loop()`.
 
 ## Running Tests
 
 ```bash
-# Run all tests (automatic discovery)
+# Run all tests
 pio test
 
 # Run specific test
@@ -40,73 +41,70 @@ pio test -f test_rtc_data
 pio test -f test_influxdb_wrapper
 ```
 
-## What Changed
-
-### 1. Directory Structure
-**Before:** All test files in `test/`  
-**After:** Each test in `test/test_name/test_name.cpp`
-
-### 2. platformio.ini
-**Before:** 5 separate environments  
-**After:** Single environment with `test_framework = unity`
-
-No need for `test_filter` or separate environments!
-
-### 3. Removed Files
-- ❌ `run_all_tests.sh` - Not needed, `pio test` handles it
-- ✅ Simpler, cleaner solution
-
-## Complete Project Structure
+## Expected Output
 
 ```
-meteo-station/
-├── README.md
-├── platformio.ini          (Single environment)
-├── src/                    (9 source files)
-├── test/                   (4 test directories)
-│   ├── test_config/
-│   ├── test_sensor_record/
-│   ├── test_rtc_data/
-│   └── test_influxdb_wrapper/
-├── data/                   (2 HTML files)
-└── docs/                   (12 documentation files)
+Testing...
+Testing test_config
+Environment: d1_mini
+...
+✓ test_config_default_values
+✓ test_config_magic_validation
+... (5 more)
+6 Tests 0 Failures 0 Ignored
+OK
+
+Testing test_sensor_record
+...
+11 Tests 0 Failures 0 Ignored
+OK
+
+Testing test_rtc_data
+...
+10 Tests 0 Failures 0 Ignored
+OK
+
+Testing test_influxdb_wrapper
+...
+11 Tests 0 Failures 0 Ignored
+OK
+
+==============================
+39 Tests 0 Failures 0 Ignored
+SUCCESS
 ```
 
-## Usage
+## Key Points
 
-```bash
-# Extract
-tar -xzf meteo-station.tar.gz
-cd meteo-station
+1. ✅ Each test in separate directory under `test/`
+2. ✅ All test files named `test.cpp`
+3. ✅ `test_ignore = sensor_main.cpp` to prevent conflicts
+4. ✅ Single environment configuration
+5. ✅ Automatic test discovery
 
-# Run all tests
-pio test
+## Complete platformio.ini
 
-# Expected output:
-# Testing...
-# test_config/* - 7 tests - OK
-# test_sensor_record/* - 11 tests - OK
-# test_rtc_data/* - 10 tests - OK
-# test_influxdb_wrapper/* - 11 tests - OK
-# 39 Tests 0 Failures
-# SUCCESS
+```ini
+[platformio]
+default_envs = d1_mini
+
+[env:d1_mini]
+platform = espressif8266
+board = d1_mini
+framework = arduino
+...
+
+; Test configuration
+test_framework = unity
+test_build_src = yes
+test_ignore = sensor_main.cpp  ← Don't compile this during tests
 ```
 
-## Why Previous Solutions Didn't Work
+## Why This Works
 
-1. **Separate environments** - PlatformIO still compiled all test files
-2. **test_filter** - Only filters which tests to RUN, not which to COMPILE
-3. **test_ignore** - Doesn't work for test files, only source files
-
-## The Right Solution
-
-✅ Each test in its own directory (per PlatformIO docs)  
-✅ Automatic test discovery  
-✅ Clean, simple configuration  
-✅ No shell scripts needed  
-
-This is the **official, documented way** to structure PlatformIO tests!
-
-Reference: https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+1. PlatformIO discovers each `test/*/` directory
+2. Compiles only `test.cpp` from that directory
+3. Links with all source files EXCEPT `sensor_main.cpp`
+4. No `setup()`/`loop()` conflicts!
 
 Ready to use! 🎉
