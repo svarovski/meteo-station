@@ -1,5 +1,5 @@
 #include <unity.h>
-#include "../../src/SensorManager.h"
+#include "../../lib/sensor/SensorManager.h"
 
 void setUp(void) {
 }

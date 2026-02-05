@@ -121,3 +121,15 @@ Let's rename all tests to simply test.cpp. Keep them in separate folders, of cou
 * sensor_main.cpp is quite big and it's code is not covered with tests. What block of code can be moved to external files and covered with unit tests. Content of main file should be minimal and basically just config and calls to other classes.
 * sensor_main.cpp is still compiled with tests and causes error.
 
+## Request 17
+
+* I think you can move handleRoot() and handleSave() methods from sensor_main.cpp to WiFiManager class.
+* Tests for DataUploader and WiFiManager are missing.
+* And you forgot to move MD files to docs folder.
+* Besides missing tests there were 2 errors in test_sensor_record:
+test.cpp:82: test_sensor_record_temperature_range: Expected 255 Was -1    [FAILED]
+test.cpp:105: test_sensor_record_is_valid: Expected TRUE Was FALSE    [FAILED]
+* Rename sensor_main.cpp to main.cpp
+* Move everything from src folder to lib folder except main.cpp
+* Remove separate test environment
+* Remove test_build_src = yes and build_src_filter``
