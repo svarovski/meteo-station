@@ -149,3 +149,18 @@ test.cpp:94: test_sensor_record_is_valid: Expected TRUE Was FALSE
 
 _Something was fixed on request "Still there?". Such request was sent because for several days there was error about "not able to compact conversation" on any question. I already thought of restarting with new session but then "Still there" helped._
 
+## Request 20
+
+Let's fix some rules:
+* *.MD files are always in docs folder.
+* You provide single .tar.gz archive as output. No extra files for download. With extra files it look confusing - which version should I use?
+
+Since I get lots of test errors - is it possible that you run tests yourself, then correct errors and then give me already working code? If possible, give me steps how to configure such setup.
+
+And here's latest test errors to correct:
+
+## Request 21
+
+Sorry, but this is wrong. We already passed this step. All source files except tests and main.cpp should be in lib folder or there will be link conflict errors. Please revert files move.
+
+It is possible to run platformio tests natively (on local host) without need for ESP hardware. It is described in this doc: https://docs.platformio.org/en/latest/integration/ci/index.html#ci and this https://docs.platformio.org/en/latest/advanced/unit-testing/runner.html#remote-test-runner. Please correct tests to not require specific hardware.

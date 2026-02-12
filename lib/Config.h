@@ -1,7 +1,11 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#ifdef NATIVE
+#include "../test/native_mocks/Arduino.h"
+#else
 #include <Arduino.h>
+#endif
 
 #define CONFIG_MAGIC 0xABCD1234
 #define CONFIG_ADDR 0

@@ -1,6 +1,12 @@
 #include "Config.h"
+
+#ifdef NATIVE
+#include "../test/native_mocks/EEPROM.h"
+#include <time.h>
+#else
 #include <EEPROM.h>
 #include <time.h>
+#endif
 
 Config::Config() {
     setDefaults();
@@ -23,15 +29,23 @@ void Config::setDefaults() {
 
 void Config::updateTimeOffset(uint32_t currentTime) {
     timeOffset = (currentTime / 65536) * 65536;
+#ifndef NATIVE
     Serial.printf("Time offset updated to: %u (%s)\n", (unsigned int)timeOffset, 
                   getTimeOffsetString().c_str());
+#endif
 }
 
 String Config::getTimeOffsetString() const {
+#ifdef NATIVE
+    char buffer[32];
+    snprintf(buffer, sizeof(buffer), "%u", (unsigned int)timeOffset);
+    return String(buffer);
+#else
     time_t t = timeOffset;
     char buffer[32];
     strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", gmtime(&t));
     return String(buffer);
+#endif
 }
 
 bool Config::load() {
@@ -42,7 +56,9 @@ bool Config::load() {
 void Config::save() {
     magic = CONFIG_MAGIC;
     EEPROM.put(CONFIG_ADDR, *this);
+#ifndef NATIVE
     EEPROM.commit();
+#endif
 }
 
 bool Config::isValid() const {
@@ -50,6 +66,7 @@ bool Config::isValid() const {
 }
 
 void Config::print() const {
+#ifndef NATIVE
     Serial.println("Configuration:");
     Serial.printf("  SSID: %s\n", ssid);
     Serial.printf("  Interval: %d seconds\n", interval);
@@ -57,4 +74,5 @@ void Config::print() const {
     Serial.printf("  Database: %s\n", influxDb);
     Serial.printf("  Measurement: %s\n", influxMeasurement);
     Serial.printf("  Time offset: %s\n", getTimeOffsetString().c_str());
+#endif
 }

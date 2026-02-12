@@ -1,5 +1,10 @@
 #include "RTCData.h"
-#include <user_interface.h>
+
+#ifndef NATIVE
+extern "C" {
+#include "user_interface.h"
+}
+#endif
 
 RTCData::RTCData() {
     initialize();
@@ -7,42 +12,46 @@ RTCData::RTCData() {
 
 void RTCData::initialize() {
     magic = RTC_MAGIC;
-    lastSync = 0;
     recordCount = 0;
     romWriteIndex = 0;
     romRecordCount = 0;
-    padding = 0;
+    lastSync = 0;
     memset(buffer, 0, sizeof(buffer));
-}
-
-bool RTCData::load() {
-    system_rtc_mem_read(0, this, sizeof(RTCData));
-    
-    if (!isValid()) {
-        Serial.println("Initializing RTC data");
-        initialize();
-        return false;
-    }
-    
-    Serial.printf("RTC data loaded: %d buffered records\n", recordCount);
-    return true;
-}
-
-void RTCData::save() {
-    system_rtc_mem_write(0, this, sizeof(RTCData));
 }
 
 bool RTCData::isValid() const {
     return magic == RTC_MAGIC;
 }
 
-bool RTCData::addRecord(const SensorRecord& record) {
-    if (recordCount >= RTC_BUFFER_SIZE) {
-        return false;
+void RTCData::save() {
+#ifdef NATIVE
+    // In native mode, data persists in memory
+#else
+    system_rtc_mem_write(64, this, sizeof(RTCData));
+#endif
+}
+
+void RTCData::load() {
+#ifdef NATIVE
+    // In native mode, use constructor initialization
+    if (!isValid()) {
+        initialize();
     }
-    
-    buffer[recordCount++] = record;
-    return true;
+#else
+    system_rtc_mem_read(64, this, sizeof(RTCData));
+    if (!isValid()) {
+        Serial.println("RTC data invalid, initializing...");
+        initialize();
+        save();
+    }
+#endif
+}
+
+void RTCData::addRecord(const SensorRecord& record) {
+    if (recordCount < RTC_BUFFER_SIZE) {
+        buffer[recordCount] = record;
+        recordCount++;
+    }
 }
 
 bool RTCData::isBufferFull() const {
@@ -51,11 +60,5 @@ bool RTCData::isBufferFull() const {
 
 void RTCData::clearBuffer() {
     recordCount = 0;
-}
-
-void RTCData::print() const {
-    Serial.println("=== RTC Data ===");
-    Serial.printf("Records in buffer: %d/%d\n", recordCount, RTC_BUFFER_SIZE);
-    Serial.printf("Records in ROM: %d\n", romRecordCount);
-    Serial.printf("Last sync: %u\n", (unsigned int)lastSync);
+    memset(buffer, 0, sizeof(buffer));
 }
