@@ -31,27 +31,32 @@ void RTCData::save() {
 #endif
 }
 
-void RTCData::load() {
+bool RTCData::load() {
 #ifdef NATIVE
     // In native mode, use constructor initialization
     if (!isValid()) {
         initialize();
     }
+    return isValid();
 #else
     system_rtc_mem_read(64, this, sizeof(RTCData));
     if (!isValid()) {
         Serial.println("RTC data invalid, initializing...");
         initialize();
         save();
+        return false;
     }
+    return true;
 #endif
 }
 
-void RTCData::addRecord(const SensorRecord& record) {
+bool RTCData::addRecord(const SensorRecord& record) {
     if (recordCount < RTC_BUFFER_SIZE) {
         buffer[recordCount] = record;
         recordCount++;
+        return true;
     }
+    return false;
 }
 
 bool RTCData::isBufferFull() const {

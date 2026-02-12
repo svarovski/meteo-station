@@ -164,3 +164,10 @@ And here's latest test errors to correct:
 Sorry, but this is wrong. We already passed this step. All source files except tests and main.cpp should be in lib folder or there will be link conflict errors. Please revert files move.
 
 It is possible to run platformio tests natively (on local host) without need for ESP hardware. It is described in this doc: https://docs.platformio.org/en/latest/integration/ci/index.html#ci and this https://docs.platformio.org/en/latest/advanced/unit-testing/runner.html#remote-test-runner. Please correct tests to not require specific hardware.
+
+## Request 22
+
+Native tests lead to errors: (errors skipped)
+
+Since tests are native now, can you run them yourself until problem is fixed? If not, explain why and how to change config to let you run them.
+

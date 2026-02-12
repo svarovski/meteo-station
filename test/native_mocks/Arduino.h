@@ -1,41 +1,85 @@
 #ifndef ARDUINO_H_MOCK
 #define ARDUINO_H_MOCK
 
-// Mock Arduino functions for native testing
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 // Basic types
 typedef uint8_t byte;
 typedef bool boolean;
 
-// String class mock
+// String class mock - minimal implementation for testing
 class String {
 private:
     char* buffer;
     size_t len;
     
 public:
-    String() : buffer(nullptr), len(0) {}
-    String(const char* str) {
-        len = strlen(str);
-        buffer = (char*)malloc(len + 1);
-        strcpy(buffer, str);
+    String() : buffer(nullptr), len(0) {
+        buffer = (char*)malloc(1);
+        buffer[0] = '\0';
     }
+    
+    String(const char* str) {
+        len = str ? strlen(str) : 0;
+        buffer = (char*)malloc(len + 1);
+        if (str) strcpy(buffer, str);
+        else buffer[0] = '\0';
+    }
+    
     String(int val) {
         buffer = (char*)malloc(32);
         snprintf(buffer, 32, "%d", val);
         len = strlen(buffer);
     }
+    
+    String(unsigned int val) {
+        buffer = (char*)malloc(32);
+        snprintf(buffer, 32, "%u", val);
+        len = strlen(buffer);
+    }
+    
+    String(long val) {
+        buffer = (char*)malloc(32);
+        snprintf(buffer, 32, "%ld", val);
+        len = strlen(buffer);
+    }
+    
+    String(unsigned long val) {
+        buffer = (char*)malloc(32);
+        snprintf(buffer, 32, "%lu", val);
+        len = strlen(buffer);
+    }
+    
     String(float val, int decimals = 2) {
         buffer = (char*)malloc(32);
         snprintf(buffer, 32, "%.*f", decimals, val);
         len = strlen(buffer);
     }
-    ~String() { if (buffer) free(buffer); }
+    
+    String(const String& other) {
+        len = other.len;
+        buffer = (char*)malloc(len + 1);
+        strcpy(buffer, other.buffer);
+    }
+    
+    ~String() { 
+        if (buffer) free(buffer); 
+    }
+    
+    String& operator=(const String& other) {
+        if (this != &other) {
+            if (buffer) free(buffer);
+            len = other.len;
+            buffer = (char*)malloc(len + 1);
+            strcpy(buffer, other.buffer);
+        }
+        return *this;
+    }
     
     const char* c_str() const { return buffer ? buffer : ""; }
     size_t length() const { return len; }
@@ -47,18 +91,48 @@ public:
     }
     
     void replace(const char* find, const char* replace) {
-        // Simplified replace
+        // Not needed for tests
     }
     
-    String& operator+=(const char* str) {
-        size_t newLen = len + strlen(str);
+    String& operator+=(const String& other) {
+        size_t newLen = len + other.len;
         char* newBuf = (char*)malloc(newLen + 1);
-        if (buffer) strcpy(newBuf, buffer);
-        strcat(newBuf, str);
-        if (buffer) free(buffer);
+        strcpy(newBuf, buffer);
+        strcat(newBuf, other.buffer);
+        free(buffer);
         buffer = newBuf;
         len = newLen;
         return *this;
+    }
+    
+    String& operator+=(const char* str) {
+        if (!str) return *this;
+        size_t newLen = len + strlen(str);
+        char* newBuf = (char*)malloc(newLen + 1);
+        strcpy(newBuf, buffer);
+        strcat(newBuf, str);
+        free(buffer);
+        buffer = newBuf;
+        len = newLen;
+        return *this;
+    }
+    
+    friend String operator+(const String& lhs, const String& rhs) {
+        String result(lhs);
+        result += rhs;
+        return result;
+    }
+    
+    friend String operator+(const String& lhs, const char* rhs) {
+        String result(lhs);
+        result += rhs;
+        return result;
+    }
+    
+    friend String operator+(const char* lhs, const String& rhs) {
+        String result(lhs);
+        result += rhs;
+        return result;
     }
 };
 
@@ -66,15 +140,10 @@ public:
 class SerialMock {
 public:
     void begin(int baud) {}
-    void print(const char* str) { printf("%s", str); }
-    void println(const char* str) { printf("%s\n", str); }
-    void println() { printf("\n"); }
-    void printf(const char* format, ...) {
-        va_list args;
-        va_start(args, format);
-        vprintf(format, args);
-        va_end(args);
-    }
+    void print(const char* str) {}
+    void println(const char* str) {}
+    void println() {}
+    void printf(const char* format, ...) {}
     void flush() {}
 };
 
@@ -92,7 +161,7 @@ inline long constrain(long x, long a, long b) {
     return x;
 }
 
-// Pin modes (dummy)
+// Pin modes
 #define INPUT 0
 #define OUTPUT 1
 #define INPUT_PULLUP 2

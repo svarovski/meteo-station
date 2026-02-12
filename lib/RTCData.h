@@ -26,9 +26,9 @@ public:
     void initialize();
     bool isValid() const;
     void save();
-    void load();
+    bool load();  // Changed to return bool
     
-    void addRecord(const SensorRecord& record);
+    bool addRecord(const SensorRecord& record);  // Changed to return bool
     bool isBufferFull() const;
     void clearBuffer();
 };
