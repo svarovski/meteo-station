@@ -1,5 +1,5 @@
 #include <unity.h>
-#include "../../lib/sensor/Config.h"
+#include "../lib/Config.h"
 #include <EEPROM.h>
 
 static Config testConfig;

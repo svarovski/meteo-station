@@ -1,5 +1,5 @@
 #include <unity.h>
-#include "../../lib/sensor/SensorRecord.h"
+#include "../lib/SensorRecord.h"
 
 void setUp(void) {
 }
@@ -16,7 +16,7 @@ void test_sensor_record_create(void) {
     SensorRecord record = SensorRecord::create(temp, hum, timestampSeconds, offsetSeconds);
     
     TEST_ASSERT_EQUAL(60, record.timestamp);
-    TEST_ASSERT_FLOAT_WITHIN(1.0, 22.0, record.getTemperature());  // Truncation
+    TEST_ASSERT_FLOAT_WITHIN(1.0, 22.0, record.getTemperature());
     TEST_ASSERT_FLOAT_WITHIN(1.0, 65.0, record.getHumidity());
 }
 
@@ -61,15 +61,20 @@ void test_sensor_record_timestamp_with_offset(void) {
 }
 
 void test_sensor_record_temperature_range(void) {
-    // Test minimum temperature
+    // Test minimum temperature: -100°C
     SensorRecord minRecord = SensorRecord::create(-100.0, 50.0, 0, 0);
-    TEST_ASSERT_EQUAL(0, minRecord.temperature);  // -100 + 100 = 0
+    // -100 + 100 = 0
+    TEST_ASSERT_EQUAL(0, minRecord.temperature);
     TEST_ASSERT_FLOAT_WITHIN(0.1, -100.0, minRecord.getTemperature());
     
-    // Test maximum temperature - constrain clips to 255
+    // Test maximum temperature: 155°C
+    // 155 + 100 = 255, constrain keeps it at 255
     SensorRecord maxRecord = SensorRecord::create(155.0, 50.0, 0, 0);
-    // 155 + 100 = 255, which is correct
+    // Since temperature is int8_t, value 255 as signed = -1
+    // So we need to cast to uint8_t to see actual stored value
     TEST_ASSERT_EQUAL(255, (uint8_t)maxRecord.temperature);
+    // But getTemperature() should return correct value
+    // 255 - 100 = 155 when treated as uint8
     TEST_ASSERT_FLOAT_WITHIN(1.0, 155.0, maxRecord.getTemperature());
 }
 
@@ -86,10 +91,11 @@ void test_sensor_record_is_valid(void) {
     SensorRecord validRecord = SensorRecord::create(22.5, 65.0, 0, 0);
     TEST_ASSERT_TRUE(validRecord.isValid());
     
-    // Edge cases - still valid
+    // Edge cases - should be valid
     SensorRecord edge1 = SensorRecord::create(-100.0, 0.0, 0, 0);
     TEST_ASSERT_TRUE(edge1.isValid());
     
+    // This should also be valid
     SensorRecord edge2 = SensorRecord::create(155.0, 100.0, 0, 0);
     TEST_ASSERT_TRUE(edge2.isValid());
 }

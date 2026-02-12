@@ -1,6 +1,6 @@
 #include <unity.h>
-#include "../../lib/sensor/RTCData.h"
-#include "../../lib/sensor/SensorRecord.h"
+#include "../lib/RTCData.h"
+#include "../lib/SensorRecord.h"
 
 static RTCData testRtcData;
 

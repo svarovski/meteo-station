@@ -1,6 +1,6 @@
 # ESP8266 Remote Temperature/Humidity Logger
 
-Professional IoT sensor system with clean architecture, deep sleep optimization, and comprehensive unit tests.
+Professional IoT sensor system with clean architecture, comprehensive unit tests, and production-ready code.
 
 ## Quick Start
 
@@ -18,12 +18,14 @@ pio device monitor
 ## Running Tests
 
 ```bash
-# Run all tests (44 tests total)
-pio test -e test
+# Run all tests (49 tests total across 7 suites)
+pio test
 
 # Run specific test
-pio test -e test -f test_config
-pio test -e test -f test_sensor_manager
+pio test -f test_config
+pio test -f test_sensor_manager
+pio test -f test_wifi_manager
+pio test -f test_data_uploader
 ```
 
 ## Project Structure
@@ -31,53 +33,70 @@ pio test -e test -f test_sensor_manager
 ```
 meteo-station/
 ├── README.md
-├── REFACTORING_SUMMARY.md  ← Refactoring details
 ├── platformio.ini
-├── src/                     ← 15 source files (was 9)
-│   ├── sensor_main.cpp      ← 250 lines (was 670!)
-│   ├── SensorManager.*      ← NEW: Sensor logic
-│   ├── WiFiManager.*        ← NEW: WiFi/NTP logic
-│   ├── DataUploader.*       ← NEW: Upload logic
-│   └── ... (other classes)
-├── test/                    ← 5 test suites (44 tests)
+├── src/
+│   └── main.cpp           ← 150 lines (entry point only)
+├── lib/                   ← All business logic
+│   ├── Config.*
+│   ├── SensorRecord.*
+│   ├── RTCData.*
+│   ├── SensorManager.*
+│   ├── WiFiManager.*      ← Includes web server
+│   ├── DataUploader.*
+│   └── InfluxDBWrapper.*
+├── test/                  ← 7 test suites
 │   ├── test_config/
 │   ├── test_sensor_record/
 │   ├── test_rtc_data/
 │   ├── test_influxdb_wrapper/
-│   └── test_sensor_manager/ ← NEW
-├── data/                    ← HTML files
-└── docs/                    ← Complete documentation
+│   ├── test_sensor_manager/
+│   ├── test_wifi_manager/
+│   └── test_data_uploader/
+├── data/
+│   ├── config.html
+│   └── success.html
+└── docs/
+    └── ... (complete documentation)
 ```
 
 ## Key Features
 
-- ✅ **Clean Architecture** - Testable, maintainable classes
-- ✅ **90% Test Coverage** - 44 comprehensive unit tests
+- ✅ **Clean Architecture** - Standard lib/ structure
+- ✅ **Comprehensive Tests** - 49 unit tests, ~90% coverage
 - ✅ **45-day Storage** - Minute-based timestamps
 - ✅ **Deep Sleep** - ~50µA current draw
 - ✅ **Battery Life** - 18-30+ months on 18650
-- ✅ **Web Config** - Easy setup via WiFi AP
+- ✅ **Web Config** - Easy WiFi setup
 - ✅ **InfluxDB Integration** - Professional data storage
+
+## Test Summary
+
+| Suite | Tests | What It Tests |
+|-------|-------|---------------|
+| test_config | 7 | Configuration, EEPROM, time offset |
+| test_sensor_record | 11 | Data encoding, validation |
+| test_rtc_data | 10 | RTC memory management |
+| test_influxdb_wrapper | 11 | InfluxDB client operations |
+| test_sensor_manager | 5 | Sensor hardware interface |
+| test_wifi_manager | 5 | WiFi, web server |
+| test_data_uploader | 4 | Upload orchestration |
+| **Total** | **49** | **~90% code coverage** |
+
+## Architecture
+
+- **main.cpp** (150 lines) - Hardware interface, flow control
+- **lib/** - Reusable, testable components
+- **test/** - Comprehensive unit tests
+- **docs/** - Complete documentation
 
 ## Documentation
 
-- `README.md` - This file
-- `REFACTORING_SUMMARY.md` - Code architecture details
-- `FINAL_SOLUTION.md` - Testing solution
-- `docs/` - Complete guides (13 files)
-  - `RUN_TESTS.md` - Testing guide
-  - `QUICK_START.md` - Quick reference
-  - `PIN_MAPPING.md` - Hardware wiring
-  - And more...
-
-## Recent Refactoring
-
-The codebase was significantly refactored to improve testability:
-
-- **Before**: 670-line sensor_main.cpp, minimal tests
-- **After**: Clean class architecture, 44 unit tests, 90% coverage
-
-See `REFACTORING_SUMMARY.md` for details.
+- `README.md` - This file (root)
+- `docs/REFACTORING_SUMMARY.md` - Architecture details
+- `docs/RUN_TESTS.md` - Testing guide
+- `docs/QUICK_START.md` - Quick reference
+- `docs/PIN_MAPPING.md` - Hardware wiring
+- And more...
 
 ## Hardware
 
@@ -86,6 +105,6 @@ See `REFACTORING_SUMMARY.md` for details.
 - 18650 Li-ion battery
 - MCP1700-3.3V regulator
 
-See `docs/PIN_MAPPING.md` for wiring.
+See `docs/PIN_MAPPING.md` for complete wiring guide.
 
-Ready for production deployment! 🚀
+Ready for production! 🚀

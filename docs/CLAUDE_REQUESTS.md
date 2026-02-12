@@ -132,4 +132,15 @@ test.cpp:105: test_sensor_record_is_valid: Expected TRUE Was FALSE    [FAILED]
 * Rename sensor_main.cpp to main.cpp
 * Move everything from src folder to lib folder except main.cpp
 * Remove separate test environment
-* Remove test_build_src = yes and build_src_filter``
+* Remove test_build_src = yes and build_src_filter
+
+## Request 18
+
+Good. Tests work without separate environment. But need few corrections:
+* Move all classes from lib/sensor to lib. No reason to make another folder level now.
+* Add tests for DataUploader and WiFiManager.
+* Move all MD files to docs folder except README.md
+* Fix tests errors:
+
+test.cpp:73: test_sensor_record_temperature_range: Expected 155 Was -101
+test.cpp:94: test_sensor_record_is_valid: Expected TRUE Was FALSE

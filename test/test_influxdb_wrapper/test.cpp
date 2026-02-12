@@ -1,7 +1,7 @@
 #include <unity.h>
-#include "../../lib/sensor/InfluxDBWrapper.h"
-#include "../../lib/sensor/Config.h"
-#include "../../lib/sensor/SensorRecord.h"
+#include "../lib/InfluxDBWrapper.h"
+#include "../lib/Config.h"
+#include "../lib/SensorRecord.h"
 
 static InfluxDBWrapper testClient;
 static Config testConfig;
