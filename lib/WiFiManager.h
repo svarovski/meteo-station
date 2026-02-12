@@ -2,10 +2,10 @@
 #define WIFI_MANAGER_H
 
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <ESP8266WebServer.h>
-#include <LittleFS.h>
-#include "Config.h"
+
+// Forward declarations to avoid including ESP8266-specific headers
+class ESP8266WebServer;
+class Config;
 
 class WiFiManager {
 private:

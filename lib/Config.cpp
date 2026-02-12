@@ -1,20 +1,27 @@
 #include "Config.h"
+#include <EEPROM.h>
+#include <time.h>
 
 Config::Config() {
     setDefaults();
 }
 
 void Config::setDefaults() {
-    memset(this, 0, sizeof(Config));
-    interval = 1800; // 30 minutes default
+    memset(ssid, 0, sizeof(ssid));
+    memset(password, 0, sizeof(password));
+    interval = 1800;
+    memset(influxServer, 0, sizeof(influxServer));
     influxPort = 8086;
+    memset(influxDb, 0, sizeof(influxDb));
+    memset(influxUser, 0, sizeof(influxUser));
+    memset(influxPass, 0, sizeof(influxPass));
+    memset(influxMeasurement, 0, sizeof(influxMeasurement));
     strcpy(influxMeasurement, "environment");
-    timeOffset = 0; // Will be set on first sync or device start
+    timeOffset = 0;
+    magic = 0;
 }
 
 void Config::updateTimeOffset(uint32_t currentTime) {
-    // Round down to nearest 65536 minutes boundary
-    // This gives us ~45 days range with 16-bit minute timestamps
     timeOffset = (currentTime / 65536) * 65536;
     Serial.printf("Time offset updated to: %u (%s)\n", (unsigned int)timeOffset, 
                   getTimeOffsetString().c_str());
@@ -29,22 +36,13 @@ String Config::getTimeOffsetString() const {
 
 bool Config::load() {
     EEPROM.get(CONFIG_ADDR, *this);
-    
-    if (!isValid()) {
-        Serial.println("No valid configuration found");
-        setDefaults();
-        return false;
-    }
-    
-    Serial.println("Configuration loaded");
-    return true;
+    return isValid();
 }
 
 void Config::save() {
     magic = CONFIG_MAGIC;
     EEPROM.put(CONFIG_ADDR, *this);
     EEPROM.commit();
-    Serial.println("Configuration saved");
 }
 
 bool Config::isValid() const {
@@ -52,10 +50,11 @@ bool Config::isValid() const {
 }
 
 void Config::print() const {
-    Serial.println("=== Configuration ===");
-    Serial.printf("SSID: %s\n", ssid);
-    Serial.printf("Interval: %d seconds\n", interval);
-    Serial.printf("InfluxDB: %s:%d\n", influxServer, influxPort);
-    Serial.printf("Database: %s\n", influxDb);
-    Serial.printf("Measurement: %s\n", influxMeasurement);
+    Serial.println("Configuration:");
+    Serial.printf("  SSID: %s\n", ssid);
+    Serial.printf("  Interval: %d seconds\n", interval);
+    Serial.printf("  InfluxDB: %s:%d\n", influxServer, influxPort);
+    Serial.printf("  Database: %s\n", influxDb);
+    Serial.printf("  Measurement: %s\n", influxMeasurement);
+    Serial.printf("  Time offset: %s\n", getTimeOffsetString().c_str());
 }

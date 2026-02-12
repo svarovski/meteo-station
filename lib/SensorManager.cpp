@@ -1,12 +1,21 @@
 #include "SensorManager.h"
+#include "SensorRecord.h"
 #include <Wire.h>
+#include <Adafruit_AHTX0.h>
 
-SensorManager::SensorManager(uint8_t pin) : powerPin(pin) {
+SensorManager::SensorManager(uint8_t pin) : powerPin(pin), aht(nullptr) {
+}
+
+SensorManager::~SensorManager() {
+    if (aht) {
+        delete aht;
+    }
 }
 
 bool SensorManager::begin() {
     pinMode(powerPin, OUTPUT);
     powerOff();
+    aht = new Adafruit_AHTX0();
     return true;
 }
 
@@ -20,17 +29,22 @@ void SensorManager::powerOff() {
 }
 
 bool SensorManager::takeMeasurement(float& temperature, float& humidity) {
+    if (!aht) {
+        Serial.println("AHT10 not initialized!");
+        return false;
+    }
+    
     powerOn();
     Wire.begin();
     
-    if (!aht.begin()) {
+    if (!aht->begin()) {
         Serial.println("Failed to initialize AHT10!");
         powerOff();
         return false;
     }
     
     sensors_event_t humidity_event, temp_event;
-    aht.getEvent(&humidity_event, &temp_event);
+    aht->getEvent(&humidity_event, &temp_event);
     
     temperature = temp_event.temperature;
     humidity = humidity_event.relative_humidity;

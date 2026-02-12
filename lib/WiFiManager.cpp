@@ -1,4 +1,8 @@
 #include "WiFiManager.h"
+#include "Config.h"
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <LittleFS.h>
 #include <time.h>
 
 #define NTP_SERVER "pool.ntp.org"
@@ -103,7 +107,6 @@ void WiFiManager::startConfigMode() {
         server = new ESP8266WebServer(80);
     }
     
-    // Use lambda to capture 'this' for member function calls
     server->on("/", HTTP_GET, [this]() { this->handleRoot(); });
     server->on("/save", HTTP_POST, [this]() { this->handleSave(); });
     server->begin();

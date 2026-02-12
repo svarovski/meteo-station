@@ -144,3 +144,8 @@ Good. Tests work without separate environment. But need few corrections:
 
 test.cpp:73: test_sensor_record_temperature_range: Expected 155 Was -101
 test.cpp:94: test_sensor_record_is_valid: Expected TRUE Was FALSE
+
+## Request 19
+
+_Something was fixed on request "Still there?". Such request was sent because for several days there was error about "not able to compact conversation" on any question. I already thought of restarting with new session but then "Still there" helped._
+

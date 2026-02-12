@@ -2,7 +2,6 @@
 #define CONFIG_H
 
 #include <Arduino.h>
-#include <EEPROM.h>
 
 #define CONFIG_MAGIC 0xABCD1234
 #define CONFIG_ADDR 0

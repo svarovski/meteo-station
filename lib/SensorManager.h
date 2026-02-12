@@ -2,17 +2,19 @@
 #define SENSOR_MANAGER_H
 
 #include <Arduino.h>
-#include <Adafruit_AHTX0.h>
-#include "Config.h"
-#include "SensorRecord.h"
+
+// Forward declarations
+class Adafruit_AHTX0;
+class SensorRecord;
 
 class SensorManager {
 private:
-    Adafruit_AHTX0 aht;
+    Adafruit_AHTX0* aht;
     uint8_t powerPin;
     
 public:
     SensorManager(uint8_t powerPin);
+    ~SensorManager();
     
     bool begin();
     void powerOn();
